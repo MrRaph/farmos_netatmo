@@ -1,6 +1,6 @@
 services:
   farm_netatmo.netatmo_service:
     class: Drupal\farm_netatmo\NetatmoService
-    arguments: ['@http_client', '@keyvalue.expirable', '@logger.channel.farm_netatmo', '@config.factory', '@plugin.manager.data_stream_type']
+    arguments: ['@http_client', '@keyvalue.expirable', '@logger.factory', '@config.factory', '@plugin.manager.data_stream_type']
     tags:
       - { name: needs_destruction }
