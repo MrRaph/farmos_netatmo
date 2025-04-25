@@ -4,7 +4,7 @@ namespace Drupal\farm_netatmo;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\data_stream\DataStreamTypeManager;
 use Drupal\Core\KeyValueStore\KeyValueExpirableFactoryInterface;
 use GuzzleHttp\ClientInterface;
@@ -27,13 +27,13 @@ class NetatmoService {
   public function __construct(
     ClientInterface $http_client,
     KeyValueExpirableFactoryInterface $kv_factory,
-    LoggerChannelInterface $logger_channel,
+    LoggerChannelFactoryInterface $logger_factory,
     ConfigFactoryInterface $config_factory,
     DataStreamTypeManager $data_stream_type_manager
   ) {
     $this->httpClient      = $http_client;
     $this->kv              = $kv_factory->get('farm_netatmo_tokens');
-    $this->logger          = $logger_channel;
+    $this->logger          = $logger_factory->get('farm_netatmo');
     $this->config          = $config_factory->get('farm_netatmo.settings');
     $this->basicDataStream = $data_stream_type_manager->createInstance('basic');
   }
