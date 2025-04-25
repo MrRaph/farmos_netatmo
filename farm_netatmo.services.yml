@@ -14,3 +14,11 @@ services:
     class: Drupal\farm_netatmo\Controller\AuthorizationController
     arguments:
       - '@farm_netatmo.netatmo_service'
+
+  farm_netatmo.drush_commands:
+    class: Drupal\farm_netatmo\Commands\FarmNetatmoCommands
+    arguments:
+      - '@farm_netatmo.netatmo_service'
+      - '@entity_type.manager'
+    tags:
+      - { name: drush.command }
