@@ -150,7 +150,7 @@ class NetatmoService implements DestructableInterface {
     $token = $this->getAccessToken();
     $resp  = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
       'headers' => ['Authorization' => 'Bearer ' . $token],
-      'query'   => ['get_favorites' => FALSE],
+      // 'query'   => ['get_favorites' => 'false'],
     ]);
     $json = json_decode($resp->getBody()->getContents(), TRUE);
     return $json['body']['devices'] ?? [];
@@ -171,7 +171,8 @@ class NetatmoService implements DestructableInterface {
 
       $resp = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
         'headers' => ['Authorization' => 'Bearer ' . $token],
-        'query'   => ['device_id' => $device_id, 'get_favorites' => FALSE],
+        // 'query'   => ['device_id' => $device_id, 'get_favorites' => 'false'],
+        'query'   => ['device_id' => $device_id],
       ]);
 
       $data = json_decode($resp->getBody()->getContents(), TRUE);
