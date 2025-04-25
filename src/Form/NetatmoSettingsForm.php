@@ -6,6 +6,7 @@ use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\farm_netatmo\NetatmoService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\Core\Url;
 
 /**
  * Formulaire d’administration Netatmo.
@@ -61,11 +62,11 @@ class NetatmoSettingsForm extends ConfigFormBase {
     // Bouton “Autoriser” seulement si identifiants saisis
     if ($config->get('client_id') && $config->get('client_secret')) {
       $form['authorize'] = [
-        '#type' => 'link',
-        '#title' => $this->t('Authorize application with Netatmo'),
-        '#url' => $this->netatmo->getAuthorizeRoute(),
-        '#attributes' => ['class' => ['button', 'button--primary']],
-      ];
+         '#type' => 'link',
+         '#title' => $this->t('Authorize application with Netatmo'),
+         '#url' => Url::fromRoute('farm_netatmo.authorize'),
+         '#attributes' => ['class' => ['button', 'button--primary']],
+       ];
     }
 
     return parent::buildForm($form, $form_state);
