@@ -6,7 +6,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\data_stream\DataStreamTypeManager;
-use Drupal\keyvalue\KeyValueExpirableFactoryInterface;
+use Drupal\Core\KeyValueStore\KeyValueExpirableFactoryInterface;
 use GuzzleHttp\ClientInterface;
 use Drupal\asset\Entity\AssetInterface;
 
