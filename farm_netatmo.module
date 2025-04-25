@@ -1,0 +1,25 @@
+<?php
+
+/**
+ * @file
+ * Hooks procéduraux du module farm_netatmo.
+ */
+
+/**
+ * Implémente hook_cron().
+ */
+function farm_netatmo_cron() {
+  $queue  = \Drupal::queue('farm_netatmo_sync');
+
+  $assets = \Drupal::entityTypeManager()
+    ->getStorage('asset')
+    ->loadByProperties(['type' => 'sensor']);
+
+  foreach ($assets as $asset) {
+    if ($asset->hasField('field_netatmo_device_id')
+      && !$asset->get('field_netatmo_device_id')->isEmpty()) {
+
+      $queue->createItem($asset->id());
+    }
+  }
+}
