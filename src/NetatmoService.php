@@ -4,6 +4,7 @@ namespace Drupal\farm_netatmo;
 
 use Drupal\asset\Entity\AssetInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\DestructableInterface;
 use Drupal\Core\KeyValueStore\KeyValueExpirableFactoryInterface;
 use Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
