@@ -2,34 +2,45 @@
 
 namespace Drupal\farm_netatmo;
 
-use Drupal\Core\Config\ConfigFactoryInterface;
-use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\Core\Logger\LoggerChannelFactoryInterface;
-use Drupal\data_stream\DataStreamTypeManager;
-use Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface;
-use GuzzleHttp\ClientInterface;
 use Drupal\asset\Entity\AssetInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\KeyValueStore\KeyValueExpirableFactoryInterface;
+use Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\data_stream\DataStreamTypeManager;
+use GuzzleHttp\ClientInterface;
 
 /**
- * Service pour récupérer les données Netatmo et les stocker comme DataStreams.
+ * Service chargé de récupérer les mesures Netatmo et de les enregistrer
+ * dans farmOS sous forme de DataStreams basiques.
  */
 class NetatmoService {
 
-  /**
-   * Clients et services injectés.
-   */
+  /** @var \GuzzleHttp\ClientInterface */
   protected ClientInterface $httpClient;
-  protected KeyValueStoreExpirableInterface $kv;
-  protected LoggerChannelFactoryInterface $logger_factory;
-  protected \Drupal\Core\Config\ImmutableConfig $config;
-  protected \Drupal\data_stream\Plugin\DataStream\DataStreamType\Basic $basicDataStream;
 
+  /** @var \Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface */
+  protected KeyValueStoreExpirableInterface $kv;
+
+  /** @var \Drupal\Core\Logger\LoggerChannelInterface */
+  protected LoggerChannelInterface $logger;
+
+  /** @var \Drupal\Core\Config\ImmutableConfig */
+  protected $config;
+
+  /** @var \Drupal\data_stream\Plugin\DataStream\DataStreamType\Basic */
+  protected $basicDataStream;
+
+  /**
+   * NetatmoService constructor.
+   */
   public function __construct(
     ClientInterface $http_client,
     KeyValueExpirableFactoryInterface $kv_factory,
     LoggerChannelFactoryInterface $logger_factory,
     ConfigFactoryInterface $config_factory,
-    DataStreamTypeManager $data_stream_type_manager
+    DataStreamTypeManager $data_stream_type_manager,
   ) {
     $this->httpClient      = $http_client;
     $this->kv              = $kv_factory->get('farm_netatmo_tokens');
@@ -39,23 +50,24 @@ class NetatmoService {
   }
 
   /**
-   * Récupère les mesures Netatmo et les enregistre.
+   * Récupère les mesures Netatmo pour un asset et les enregistre.
    */
   public function fetchAndStore(AssetInterface $asset): void {
     try {
       $token = $this->getAccessToken();
-      $deviceId = $asset->get('field_netatmo_device_id')->value ?? NULL;
-      if (!$deviceId) {
-        $this->logger->warning('L\'asset @id n\'a pas d\'ID Netatmo.', ['@id' => $asset->id()]);
+      $device_id = $asset->get('field_netatmo_device_id')->value ?? NULL;
+      if (!$device_id) {
+        $this->logger->warning(
+          'L’asset @id n’a pas de device_id Netatmo.',
+          ['@id' => $asset->id()],
+        );
         return;
       }
 
       $response = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
-        'headers' => [
-          'Authorization' => 'Bearer ' . $token,
-        ],
-        'query' => [
-          'device_id' => $deviceId,
+        'headers' => ['Authorization' => 'Bearer ' . $token],
+        'query'   => [
+          'device_id'     => $device_id,
           'get_favorites' => FALSE,
         ],
       ]);
@@ -65,17 +77,17 @@ class NetatmoService {
         return;
       }
 
-      $measurements = $payload['body']['devices'][0]['dashboard_data'];
-      $timestamp = $measurements['time_utc'] ?? time();
-      unset($measurements['time_utc']);
+      $data      = $payload['body']['devices'][0]['dashboard_data'];
+      $timestamp = $data['time_utc'] ?? time();
+      unset($data['time_utc']);
 
-      $existing = $this->getBasicStreams($asset);
-
-      foreach ($measurements as $name => $value) {
-        if (!isset($existing[$name])) {
-          $existing[$name] = $this->createDataStream($asset, $name);
+      // S’assure que chaque métrique possède son DataStream.
+      $streams = $this->getBasicStreams($asset);
+      foreach ($data as $name => $value) {
+        if (!isset($streams[$name])) {
+          $streams[$name] = $this->createDataStream($asset, $name);
         }
-        $this->basicDataStream->saveValue($existing[$name], (float) $value, $timestamp);
+        $this->basicDataStream->saveValue($streams[$name], (float) $value, $timestamp);
       }
     }
     catch (\Throwable $e) {
@@ -84,7 +96,7 @@ class NetatmoService {
   }
 
   /**
-   * Renvoie un access_token Netatmo valide.
+   * Renvoie un access_token Netatmo valide (mis en cache en KV expirable).
    */
   protected function getAccessToken(): string {
     if ($cached = $this->kv->get('access_token')) {
@@ -110,6 +122,9 @@ class NetatmoService {
     return $data['access_token'];
   }
 
+  /**
+   * Renvoie les DataStreams « basic » existants, indexés par leur nom.
+   */
   protected function getBasicStreams(AssetInterface $asset): array {
     $streams = [];
     foreach ($asset->get('data_stream')->referencedEntities() as $stream) {
@@ -120,6 +135,9 @@ class NetatmoService {
     return $streams;
   }
 
+  /**
+   * Crée un nouveau DataStream basique sur l’asset pour une métrique donnée.
+   */
   protected function createDataStream(AssetInterface $asset, string $name) {
     $stream = $this->basicDataStream->create([
       'type' => 'basic',
