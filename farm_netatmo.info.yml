@@ -1,0 +1,7 @@
+name: farmOS Netatmo
+description: Integrates Netatmo weather stations with farmOS.
+type: module
+package: farmOS Contrib
+core_version_requirement: ^10
+dependencies:
+  - farm_sensor
