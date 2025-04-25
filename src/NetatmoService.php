@@ -4,7 +4,7 @@ namespace Drupal\farm_netatmo;
 
 use Drupal\asset\Entity\AssetInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
-use Drupal\Core\Config\ImmutableConfig;
+use Drupal\Core\Config\Config;
 use Drupal\Core\DestructableInterface;
 use Drupal\Core\KeyValueStore\KeyValueExpirableFactoryInterface;
 use Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface;
@@ -26,7 +26,7 @@ class NetatmoService implements DestructableInterface {
   protected KeyValueStoreExpirableInterface $kv;
   protected LoggerChannelInterface $logger;
   protected ConfigFactoryInterface $configFactory;
-  protected ImmutableConfig $config;
+  protected Config $config;
   protected \Drupal\data_stream\Plugin\DataStream\DataStreamType\Basic $basicDataStream;
 
   /* -----------------------------------------------------------------------
