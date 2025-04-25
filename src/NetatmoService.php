@@ -162,4 +162,16 @@ class NetatmoService implements DestructableInterface {
     return $stream;
   }
 
+  public function listDevices(): array {
+    $token = $this->getAccessToken();
+    $response = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
+      'headers' => ['Authorization' => 'Bearer ' . $token],
+      'query'   => ['get_favorites' => FALSE],
+    ]);
+  
+    $payload = json_decode($response->getBody()->getContents(), TRUE);
+    $devices = $payload['body']['devices'] ?? [];
+    return $devices;       // tableau brut : contiendra device_id, module_name, etc.
+  }
+  
 }
