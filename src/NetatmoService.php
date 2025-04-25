@@ -6,7 +6,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\data_stream\DataStreamTypeManager;
-use Drupal\Core\KeyValueStore\KeyValueExpirableFactoryInterface;
+use Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface;
 use GuzzleHttp\ClientInterface;
 use Drupal\asset\Entity\AssetInterface;
 
@@ -19,7 +19,7 @@ class NetatmoService {
    * Clients et services injectés.
    */
   protected ClientInterface $httpClient;
-  protected \Drupal\keyvalue\KeyValueStoreInterface $kv;
+  protected KeyValueStoreExpirableInterface $kv;
   protected LoggerChannelFactoryInterface $logger_factory;
   protected \Drupal\Core\Config\ImmutableConfig $config;
   protected \Drupal\data_stream\Plugin\DataStream\DataStreamType\Basic $basicDataStream;
