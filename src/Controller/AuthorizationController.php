@@ -7,6 +7,7 @@ use Drupal\farm_netatmo\NetatmoService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Drupal\Core\Routing\TrustedRedirectResponse;
 
 /**
  * Gère l’autorisation OAuth Netatmo.
@@ -28,7 +29,7 @@ class AuthorizationController extends ControllerBase {
     $state = bin2hex(random_bytes(8));
     $this->netatmo->storeState($state, $this->currentUser()->id());
 
-    return new RedirectResponse($this->netatmo->buildAuthorizeUrl($state));
+    return new TrustedRedirectResponse($this->netatmo->buildAuthorizeUrl($state));
   }
 
   /**
