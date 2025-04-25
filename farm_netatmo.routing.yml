@@ -1,9 +1,9 @@
 farm_netatmo.settings:
-  path: '/admin/config/farm/settings/netatmo'
+  path: '/farm/settings/netatmo'       # <- même préfixe que farm.settings
   defaults:
     _form: '\Drupal\farm_netatmo\Form\NetatmoSettingsForm'
-    _title: 'Paramètres Netatmo'
+    _title: 'Netatmo'
   requirements:
     _permission: 'administer farm sensor'
   options:
-    _admin_route: TRUE
+    _admin_route: TRUE                 # reste un écran d’admin
