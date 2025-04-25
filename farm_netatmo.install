@@ -1,0 +1,47 @@
+<?php
+
+/**
+ * @file
+ * Hooks d’installation/mise-à-jour pour farm_netatmo.
+ */
+
+use Drupal\field\Entity\FieldConfig;
+use Drupal\field\Entity\FieldStorageConfig;
+
+/**
+ * Implémente hook_install().
+ *
+ * - Crée le champ `field_netatmo_device_id` (string, longueur 50)
+ *   sur le bundle *sensor* si nécessaire.
+ */
+function farm_netatmo_install(): void {
+  $field_name   = 'field_netatmo_device_id';
+  $entity_type  = 'asset';
+  $bundle       = 'sensor';
+
+  // 1. Field storage (global) -------------------------------------------------
+  $storage = FieldStorageConfig::loadByName($entity_type, $field_name);
+  if (!$storage) {
+    $storage = FieldStorageConfig::create([
+      'field_name'  => $field_name,
+      'entity_type' => $entity_type,
+      'type'        => 'string',
+      'settings'    => ['max_length' => 50],
+      'cardinality' => 1,
+      'translatable' => FALSE,
+    ]);
+    $storage->save();
+  }
+
+  // 2. Field instance sur le bundle sensor ------------------------------------
+  $instance = FieldConfig::loadByName($entity_type, $bundle, $field_name);
+  if (!$instance) {
+    $instance = FieldConfig::create([
+      'field_storage' => $storage,
+      'bundle'        => $bundle,
+      'label'         => 'Netatmo device id',
+      'required'      => FALSE,
+    ]);
+    $instance->save();
+  }
+}
