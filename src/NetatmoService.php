@@ -42,7 +42,7 @@ class NetatmoService implements DestructableInterface {
   public function destruct(): void {
     // Exemple : vider le client HTTP ou fermer un handle curl.
     // Dans notre cas, rien d’obligatoire :
-    $this->httpClient = NULL;
+    // Rien à nettoyer.
   }
 
   /**
