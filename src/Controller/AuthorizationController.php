@@ -3,7 +3,6 @@
 namespace Drupal\farm_netatmo\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\farm_netatmo\NetatmoService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -16,18 +15,14 @@ class AuthorizationController extends ControllerBase {
 
   public function __construct(
     protected NetatmoService $netatmo,
-    protected LoggerChannelFactoryInterface $loggerFactory,
   ) {}
 
   public static function create(ContainerInterface $c): static {
-    return new static(
-      $c->get('farm_netatmo.netatmo_service'),
-      $c->get('logger.factory'),
-    );
+    return new static($c->get('farm_netatmo.netatmo_service'));
   }
 
   /**
-   * Étape 1 : redirection vers le portail Netatmo.
+   * Étape 1 : redirige vers le portail Netatmo pour autorisation.
    */
   public function authorize(): RedirectResponse {
     $state = bin2hex(random_bytes(8));
@@ -37,7 +32,7 @@ class AuthorizationController extends ControllerBase {
   }
 
   /**
-   * Étape 2 : callback OAuth.
+   * Étape 2 : callback OAuth (/farm/netatmo/oauth/callback).
    */
   public function callback(Request $request): RedirectResponse {
     $code  = $request->query->get('code');
@@ -53,7 +48,7 @@ class AuthorizationController extends ControllerBase {
       $this->messenger()->addStatus($this->t('Netatmo authorization successful.'));
     }
     catch (\Throwable $e) {
-      $this->loggerFactory->get('farm_netatmo')->error($e->getMessage());
+      $this->logger('farm_netatmo')->error($e->getMessage());
       $this->messenger()->addError($this->t('Failed to authorize Netatmo: @m', ['@m' => $e->getMessage()]));
     }
 
