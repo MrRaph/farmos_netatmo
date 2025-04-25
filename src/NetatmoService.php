@@ -4,6 +4,7 @@ namespace Drupal\farm_netatmo;
 
 use Drupal\asset\Entity\AssetInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\DestructableInterface;
 use Drupal\Core\KeyValueStore\KeyValueExpirableFactoryInterface;
 use Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface;
@@ -13,94 +14,181 @@ use Drupal\data_stream\DataStreamTypeManager;
 use GuzzleHttp\ClientInterface;
 
 /**
- * Service chargé de récupérer les mesures Netatmo et de les enregistrer
- * dans farmOS sous forme de DataStreams basiques.
+ * Service d’intégration Netatmo : gestion OAuth + import des mesures.
  */
 class NetatmoService implements DestructableInterface {
 
-  /** @var \GuzzleHttp\ClientInterface */
+  /* -----------------------------------------------------------------------
+   * Propriétés
+   * --------------------------------------------------------------------- */
+
   protected ClientInterface $httpClient;
-
-  /** @var \Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface */
   protected KeyValueStoreExpirableInterface $kv;
-
-  /** @var \Drupal\Core\Logger\LoggerChannelInterface */
   protected LoggerChannelInterface $logger;
+  protected ConfigFactoryInterface $configFactory;
+  protected ImmutableConfig $config;
+  protected \Drupal\data_stream\Plugin\DataStream\DataStreamType\Basic $basicDataStream;
 
-  /** @var \Drupal\Core\Config\ImmutableConfig */
-  protected $config;
-
-  /** @var \Drupal\data_stream\Plugin\DataStream\DataStreamType\Basic */
-  protected $basicDataStream;
-
-  /**
-   * Désalloue les ressources quand Drupal ferme son kernel.
-   *
-   * Cette méthode est appelée automatiquement parce que le service
-   * est tagué needs_destruction dans farm_netatmo.services.yml.
-   */
-  public function destruct(): void {
-    // Exemple : vider le client HTTP ou fermer un handle curl.
-    // Dans notre cas, rien d’obligatoire :
-    // Rien à nettoyer.
-  }
-
-  /**
-   * NetatmoService constructor.
-   */
+  /* -----------------------------------------------------------------------
+   * Constructeur
+   * --------------------------------------------------------------------- */
   public function __construct(
     ClientInterface $http_client,
     KeyValueExpirableFactoryInterface $kv_factory,
     LoggerChannelFactoryInterface $logger_factory,
     ConfigFactoryInterface $config_factory,
-    DataStreamTypeManager $data_stream_type_manager,
+    DataStreamTypeManager $stream_manager,
   ) {
     $this->httpClient      = $http_client;
     $this->kv              = $kv_factory->get('farm_netatmo_tokens');
     $this->logger          = $logger_factory->get('farm_netatmo');
-    $this->config          = $config_factory->get('farm_netatmo.settings');
-    $this->basicDataStream = $data_stream_type_manager->createInstance('basic');
+    $this->configFactory   = $config_factory;
+    $this->config          = $config_factory->getEditable('farm_netatmo.settings');
+    $this->basicDataStream = $stream_manager->createInstance('basic');
+  }
+
+  /* -----------------------------------------------------------------------
+   * OAuth : helpers d’autorisation
+   * --------------------------------------------------------------------- */
+
+  /**
+   * URL d’autorisation Netatmo avec state CSRF.
+   */
+  public function buildAuthorizeUrl(string $state): string {
+    $qs = http_build_query([
+      'client_id'     => $this->config->get('client_id'),
+      'redirect_uri'  => $this->getRedirectUri(),
+      'response_type' => 'code',
+      'scope'         => 'read_station',
+      'state'         => $state,
+    ]);
+    return 'https://api.netatmo.com/oauth2/authorize?' . $qs;
   }
 
   /**
-   * Récupère les mesures Netatmo pour un asset et les enregistre.
+   * Stocke un state temporaire (5 min) pour la sécurité OAuth.
    */
+  public function storeState(string $state, int $uid): void {
+    $this->kv->setWithExpire("state_$state", $uid, 300);
+  }
+
+  /**
+   * Vérifie la validité d’un state reçu du callback.
+   */
+  public function isStateValid(?string $state): bool {
+    return $state && $this->kv->get("state_$state") !== NULL;
+  }
+
+  /**
+   * Échange le code d’autorisation contre access + refresh tokens.
+   */
+  public function exchangeAuthorizationCode(string $code): void {
+    $response = $this->httpClient->request('POST', 'https://api.netatmo.com/oauth2/token', [
+      'form_params' => [
+        'grant_type'    => 'authorization_code',
+        'client_id'     => $this->config->get('client_id'),
+        'client_secret' => $this->config->get('client_secret'),
+        'redirect_uri'  => $this->getRedirectUri(),
+        'code'          => $code,
+      ],
+    ]);
+
+    $data = json_decode($response->getBody()->getContents(), TRUE);
+
+    $this->kv->setWithExpire('access_token', $data['access_token'], $data['expires_in']);
+    $this->kv->set('expires', time() + $data['expires_in']);
+
+    $this->config
+      ->set('refresh_token', $data['refresh_token'])
+      ->save();
+  }
+
+  /**
+   * Retourne un access_token prêt à l’emploi (refresh si expiré).
+   */
+  public function getAccessToken(): string {
+    if (($tok = $this->kv->get('access_token')) && $this->kv->get('expires') > time()) {
+      return $tok;
+    }
+
+    $response = $this->httpClient->request('POST', 'https://api.netatmo.com/oauth2/token', [
+      'form_params' => [
+        'grant_type'    => 'refresh_token',
+        'client_id'     => $this->config->get('client_id'),
+        'client_secret' => $this->config->get('client_secret'),
+        'refresh_token' => $this->config->get('refresh_token'),
+      ],
+    ]);
+
+    $data = json_decode($response->getBody()->getContents(), TRUE);
+
+    $this->kv->setWithExpire('access_token', $data['access_token'], $data['expires_in']);
+    $this->kv->set('expires', time() + $data['expires_in']);
+    $this->config
+      ->set('refresh_token', $data['refresh_token'])
+      ->save();
+
+    return $data['access_token'];
+  }
+
+  /**
+   * URL absolue du callback OAuth.
+   */
+  protected function getRedirectUri(): string {
+    $base = \Drupal::request()->getSchemeAndHttpHost();
+    return $base . '/farm/netatmo/oauth/callback';
+  }
+
+  /* -----------------------------------------------------------------------
+   * API Netatmo : liste des modules
+   * --------------------------------------------------------------------- */
+
+  /**
+   * Renvoie le tableau brut des appareils/modules Netatmo.
+   */
+  public function listDevices(): array {
+    $token = $this->getAccessToken();
+    $resp  = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
+      'headers' => ['Authorization' => 'Bearer ' . $token],
+      'query'   => ['get_favorites' => FALSE],
+    ]);
+    $json = json_decode($resp->getBody()->getContents(), TRUE);
+    return $json['body']['devices'] ?? [];
+  }
+
+  /* -----------------------------------------------------------------------
+   * Import des mesures pour un asset
+   * --------------------------------------------------------------------- */
+
   public function fetchAndStore(AssetInterface $asset): void {
     try {
       $token = $this->getAccessToken();
       $device_id = $asset->get('field_netatmo_device_id')->value ?? NULL;
       if (!$device_id) {
-        $this->logger->warning(
-          'L’asset @id n’a pas de device_id Netatmo.',
-          ['@id' => $asset->id()],
-        );
+        $this->logger->warning('Asset @id sans device_id Netatmo.', ['@id' => $asset->id()]);
         return;
       }
 
-      $response = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
+      $resp = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
         'headers' => ['Authorization' => 'Bearer ' . $token],
-        'query'   => [
-          'device_id'     => $device_id,
-          'get_favorites' => FALSE,
-        ],
+        'query'   => ['device_id' => $device_id, 'get_favorites' => FALSE],
       ]);
 
-      $payload = json_decode($response->getBody()->getContents(), TRUE);
-      if (!isset($payload['body']['devices'][0]['dashboard_data'])) {
+      $data = json_decode($resp->getBody()->getContents(), TRUE);
+      if (!isset($data['body']['devices'][0]['dashboard_data'])) {
         return;
       }
 
-      $data      = $payload['body']['devices'][0]['dashboard_data'];
-      $timestamp = $data['time_utc'] ?? time();
-      unset($data['time_utc']);
+      $dash     = $data['body']['devices'][0]['dashboard_data'];
+      $ts       = $dash['time_utc'] ?? time();
+      unset($dash['time_utc']);
 
-      // S’assure que chaque métrique possède son DataStream.
       $streams = $this->getBasicStreams($asset);
-      foreach ($data as $name => $value) {
+      foreach ($dash as $name => $value) {
         if (!isset($streams[$name])) {
           $streams[$name] = $this->createDataStream($asset, $name);
         }
-        $this->basicDataStream->saveValue($streams[$name], (float) $value, $timestamp);
+        $this->basicDataStream->saveValue($streams[$name], (float) $value, $ts);
       }
     }
     catch (\Throwable $e) {
@@ -108,49 +196,20 @@ class NetatmoService implements DestructableInterface {
     }
   }
 
-  /**
-   * Renvoie un access_token Netatmo valide (mis en cache en KV expirable).
-   */
-  protected function getAccessToken(): string {
-    if ($cached = $this->kv->get('access_token')) {
-      if ($this->kv->get('expires') > time()) {
-        return $cached;
-      }
-    }
+  /* -----------------------------------------------------------------------
+   * Helpers DataStream
+   * --------------------------------------------------------------------- */
 
-    $response = $this->httpClient->request('POST', 'https://api.netatmo.com/oauth2/token', [
-      'form_params' => [
-        'grant_type'    => 'password',
-        'client_id'     => $this->config->get('client_id'),
-        'client_secret' => $this->config->get('client_secret'),
-        'username'      => $this->config->get('username'),
-        'password'      => $this->config->get('password'),
-        'scope'         => 'read_station',
-      ],
-    ]);
-
-    $data = json_decode($response->getBody()->getContents(), TRUE);
-    $this->kv->setWithExpire('access_token', $data['access_token'], $data['expires_in']);
-    $this->kv->set('expires', time() + $data['expires_in']);
-    return $data['access_token'];
-  }
-
-  /**
-   * Renvoie les DataStreams « basic » existants, indexés par leur nom.
-   */
   protected function getBasicStreams(AssetInterface $asset): array {
-    $streams = [];
+    $out = [];
     foreach ($asset->get('data_stream')->referencedEntities() as $stream) {
       if ($stream->bundle() === 'basic') {
-        $streams[$stream->label()] = $stream;
+        $out[$stream->label()] = $stream;
       }
     }
-    return $streams;
+    return $out;
   }
 
-  /**
-   * Crée un nouveau DataStream basique sur l’asset pour une métrique donnée.
-   */
   protected function createDataStream(AssetInterface $asset, string $name) {
     $stream = $this->basicDataStream->create([
       'type' => 'basic',
@@ -162,16 +221,12 @@ class NetatmoService implements DestructableInterface {
     return $stream;
   }
 
-  public function listDevices(): array {
-    $token = $this->getAccessToken();
-    $response = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
-      'headers' => ['Authorization' => 'Bearer ' . $token],
-      'query'   => ['get_favorites' => FALSE],
-    ]);
-  
-    $payload = json_decode($response->getBody()->getContents(), TRUE);
-    $devices = $payload['body']['devices'] ?? [];
-    return $devices;       // tableau brut : contiendra device_id, module_name, etc.
+  /* -----------------------------------------------------------------------
+   * DestructableInterface
+   * --------------------------------------------------------------------- */
+
+  public function destruct(): void {
+    // Rien à nettoyer explicitement.
   }
-  
+
 }

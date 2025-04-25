@@ -1,33 +1,21 @@
 <?php
 
-/**
- * @file
- * Hooks procéduraux du module farm_netatmo.
- *
- * - farm_netatmo_cron() interroge l'API Netatmo à chaque passage de cron ;
- *   il crée automatiquement les assets « sensor » manquants, puis alimente
- *   la file d'attente farm_netatmo_sync.
- */
-
-use Drupal\asset\Entity\Asset;
+use Drupal\asset\Entity\AssetInterface;
 
 /**
  * Implémente hook_cron().
  *
- * 1. Appelle NetatmoService::listDevices() pour récupérer tous les modules
- *    Netatmo du compte configuré.
- * 2. Pour chaque module :
- *      - crée/charge un asset de type "sensor" identifié par son device_id ;
- *      - place son ID dans la queue farm_netatmo_sync.
+ * - Crée les assets manquants pour chaque module Netatmo.
+ * - Alimente la queue farm_netatmo_sync.
  */
 function farm_netatmo_cron() {
-  /** @var \Drupal\farm_netatmo\NetatmoService $netatmo */
-  $netatmo = \Drupal::service('farm_netatmo.netatmo_service');
-  $queue   = \Drupal::queue('farm_netatmo_sync');
+  /** @var \Drupal\farm_netatmo\NetatmoService $api */
+  $api     = \Drupal::service('farm_netatmo.netatmo_service');
   $storage = \Drupal::entityTypeManager()->getStorage('asset');
+  $queue   = \Drupal::queue('farm_netatmo_sync');
 
   try {
-    $devices = $netatmo->listDevices();
+    $devices = $api->listDevices();
   }
   catch (\Throwable $e) {
     \Drupal::logger('farm_netatmo')->error($e->getMessage());
@@ -35,46 +23,40 @@ function farm_netatmo_cron() {
   }
 
   $created = 0;
-  $queued  = 0;
-
-  foreach ($devices as $device) {
-    // Sur les modules intérieurs/extérieur Netatmo, l'ID est "module_id".
-    $device_id   = $device['module_id']   ?? $device['device_id'] ?? NULL;
-    $device_name = $device['module_name'] ?? $device['station_name'] ?? 'Netatmo';
+  foreach ($devices as $d) {
+    $device_id   = $d['module_id']   ?? $d['device_id'] ?? NULL;
+    $device_name = $d['module_name'] ?? $d['station_name'] ?? 'Netatmo';
 
     if (!$device_id) {
-      continue; // Ne devrait pas arriver.
+      continue;
     }
 
-    // Cherche un asset "sensor" existant avec ce device_id.
+    // Charge ou crée l’asset sensor.
     $ids = \Drupal::entityQuery('asset')
       ->condition('type', 'sensor')
       ->condition('field_netatmo_device_id', $device_id)
-      ->range(0, 1)
       ->execute();
 
     if ($ids) {
       $asset = $storage->load(reset($ids));
     }
     else {
-      // Crée l'asset manquant.
-      /** @var \Drupal\asset\Entity\AssetInterface $asset */
+      /** @var AssetInterface $asset */
       $asset = $storage->create([
-        'type'  => 'sensor',
-        'name'  => 'Netatmo – ' . $device_name,
+        'type' => 'sensor',
+        'name' => 'Netatmo – ' . $device_name,
         'field_netatmo_device_id' => $device_id,
       ]);
       $asset->save();
       $created++;
     }
 
-    // Alimente la queue.
+    // Ajoute à la queue
     $queue->createItem($asset->id());
-    $queued++;
   }
 
   \Drupal::logger('farm_netatmo')->notice(
-    'Cron Netatmo : @created assets créés, @queued capteurs mis en file.',
-    ['@created' => $created, '@queued' => $queued],
+    'Netatmo cron : @new assets créés, @all modules en file.',
+    ['@new' => $created, '@all' => count($devices)],
   );
 }
