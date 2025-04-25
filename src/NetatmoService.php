@@ -20,7 +20,7 @@ class NetatmoService {
    */
   protected ClientInterface $httpClient;
   protected \Drupal\keyvalue\KeyValueStoreInterface $kv;
-  protected LoggerChannelInterface $logger;
+  protected LoggerChannelFactoryInterface $logger_factory;
   protected \Drupal\Core\Config\ImmutableConfig $config;
   protected \Drupal\data_stream\Plugin\DataStream\DataStreamType\Basic $basicDataStream;
 
@@ -46,7 +46,7 @@ class NetatmoService {
       $token = $this->getAccessToken();
       $deviceId = $asset->get('field_netatmo_device_id')->value ?? NULL;
       if (!$deviceId) {
-        $this->logger->warning('L'asset @id n'a pas d'ID Netatmo.', ['@id' => $asset->id()]);
+        $this->logger->warning('L\'asset @id n\'a pas d\'ID Netatmo.', ['@id' => $asset->id()]);
         return;
       }
 
