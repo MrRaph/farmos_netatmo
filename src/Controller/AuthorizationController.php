@@ -3,44 +3,41 @@
 namespace Drupal\farm_netatmo\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\farm_netatmo\NetatmoService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * Gère l’autorisation OAuth avec Netatmo.
+ * Gère l’autorisation OAuth Netatmo.
  */
 class AuthorizationController extends ControllerBase {
 
   public function __construct(
     protected NetatmoService $netatmo,
-    protected AccountInterface $currentUser,
-    protected \Drupal\Core\Logger\LoggerChannelFactoryInterface $loggerFactory,
+    protected LoggerChannelFactoryInterface $loggerFactory,
   ) {}
 
   public static function create(ContainerInterface $c): static {
     return new static(
       $c->get('farm_netatmo.netatmo_service'),
-      $c->get('current_user'),
       $c->get('logger.factory'),
     );
   }
 
   /**
-   * Étape 1 : redirige vers le portail Netatmo pour autoriser l’app.
+   * Étape 1 : redirection vers le portail Netatmo.
    */
   public function authorize(): RedirectResponse {
     $state = bin2hex(random_bytes(8));
-    $this->netatmo->storeState($state, $this->currentUser->id());
+    $this->netatmo->storeState($state, $this->currentUser()->id());
 
-    $url = $this->netatmo->buildAuthorizeUrl($state);
-    return new RedirectResponse($url);
+    return new RedirectResponse($this->netatmo->buildAuthorizeUrl($state));
   }
 
   /**
-   * Étape 2 : Netatmo redirige ici avec ?code=…&state=…
+   * Étape 2 : callback OAuth.
    */
   public function callback(Request $request): RedirectResponse {
     $code  = $request->query->get('code');

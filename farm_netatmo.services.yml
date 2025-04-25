@@ -12,4 +12,4 @@ services:
 
   farm_netatmo.authorization_controller:
     class: Drupal\farm_netatmo\Controller\AuthorizationController
-    arguments: ['@farm_netatmo.netatmo_service', '@current_user', '@logger.factory']
+    arguments: ['@farm_netatmo.netatmo_service', '@logger.factory']
