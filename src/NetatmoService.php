@@ -159,8 +159,8 @@ class NetatmoService implements DestructableInterface {
       ]);
       $sensor->save();
 
-      // Associer le parent (référence multiple sur "parents").
-      $sensor->get('parents')->appendItem(['target_id' => $parent_id]);
+            // Associer le parent (référence multiple sur "parent")..
+            $sensor->get('parent')->appendItem(['target_id' => $parent_id]);
       $sensor->save();
 
       // Créer le DataStream.
