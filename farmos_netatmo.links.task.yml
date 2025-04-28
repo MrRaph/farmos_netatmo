@@ -1,5 +1,5 @@
-farmos_netatmo.settings_tab:
+farmos_netatmo.settings:
   route_name: farmos_netatmo.settings
   title: 'Netatmo'
-  base_route: farm.settings
-  weight: 100
+  base_route: farm_settings.settings_page
+  weight: 5
