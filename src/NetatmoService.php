@@ -47,6 +47,16 @@ class NetatmoService implements DestructableInterface {
     $this->basicDataStream = $stream_manager->createInstance('basic');
   }
 
+  /**
+   * Checks if the service is authorized (i.e., a refresh token exists).
+   *
+   * @return bool
+   *   TRUE if authorized, FALSE otherwise.
+   */
+  public function isAuthorized(): bool {
+    return (bool) $this->config->get('refresh_token');
+  }
+
   /* -----------------------------------------------------------------------
    * OAuth : helpers d’autorisation
    * --------------------------------------------------------------------- */
