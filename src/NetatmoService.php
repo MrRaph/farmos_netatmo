@@ -299,11 +299,10 @@ class NetatmoService implements DestructableInterface {
    * @return string
    */
   public function getRedirectUri(): string {
-    // Route nommée définie dans votre module, pointant vers
-    // AuthorizationController::callback().
-    return \Drupal::url('farm_netatmo.callback', [], ['absolute' => TRUE]);
+    return \Drupal\Core\Url::fromRoute('farm_netatmo.callback', [], [
+      'absolute' => TRUE,
+    ])->toString();
   }
-
 
   /**
    * {@inheritdoc}
