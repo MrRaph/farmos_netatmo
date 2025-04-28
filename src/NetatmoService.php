@@ -19,57 +19,29 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  */
 class NetatmoService implements DestructableInterface {
 
-  /**
-   * Guzzle HTTP client.
-   *
-   * @var \GuzzleHttp\ClientInterface
-   */
+  /** @var \GuzzleHttp\ClientInterface */
   protected ClientInterface $httpClient;
 
-  /**
-   * Expirable key-value store for tokens.
-   *
-   * @var \Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface
-   */
+  /** @var \Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface */
   protected KeyValueStoreExpirableInterface $kv;
 
-  /**
-   * Logger channel.
-   *
-   * @var \Drupal\Core\Logger\LoggerChannelInterface
-   */
+  /** @var \Drupal\Core\Logger\LoggerChannelInterface */
   protected LoggerChannelInterface $logger;
 
-  /**
-   * Config factory.
-   *
-   * @var \Drupal\Core\Config\ConfigFactoryInterface
-   */
+  /** @var \Drupal\Core\Config\ConfigFactoryInterface */
   protected ConfigFactoryInterface $configFactory;
 
-  /**
-   * Editable config object.
-   *
-   * @var \Drupal\Core\Config\Config
-   */
+  /** @var \Drupal\Core\Config\Config */
   protected Config $config;
 
-  /**
-   * Basic data stream plugin.
-   *
-   * @var object
-   */
+  /** @var object */
   protected $basicDataStream;
 
-  /**
-   * Entity type manager.
-   *
-   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
-   */
+  /** @var \Drupal\Core\Entity\EntityTypeManagerInterface */
   protected EntityTypeManagerInterface $entityTypeManager;
 
   /**
-   * Constructs the NetatmoService.
+   * Constructeur.
    */
   public function __construct(
     ClientInterface $http_client,
@@ -89,16 +61,14 @@ class NetatmoService implements DestructableInterface {
   }
 
   /**
-   * Checks if a refresh token exists.
-   *
-   * @return bool
+   * Vérifie si un refresh token est présent.
    */
   public function isAuthorized(): bool {
     return (bool) $this->config->get('refresh_token');
   }
 
   /**
-   * Exchanges authorization code for tokens.
+   * Échange le code OAuth contre un access et refresh token.
    */
   public function exchangeAuthorizationCode(string $code): void {
     $response = $this->httpClient->request('POST', 'https://api.netatmo.com/oauth2/token', [
@@ -110,20 +80,18 @@ class NetatmoService implements DestructableInterface {
         'code' => $code,
       ],
     ]);
-
     $data = json_decode($response->getBody()->getContents(), TRUE);
     $this->kv->setWithExpire('access_token', $data['access_token'], $data['expires_in']);
     $this->kv->set('expires', time() + $data['expires_in']);
-    $this->config
-      ->set('refresh_token', $data['refresh_token'])
-      ->save();
+    $this->config->set('refresh_token', $data['refresh_token'])->save();
   }
 
   /**
-   * Retrieves a valid access token, refreshing if expired.
+   * Récupère un access token valide.
    */
   public function getAccessToken(): string {
-    if (($tok = $this->kv->get('access_token')) && $this->kv->get('expires') > time()) {
+    $tok = $this->kv->get('access_token');
+    if ($tok && $this->kv->get('expires') > time()) {
       return $tok;
     }
     $response = $this->httpClient->request('POST', 'https://api.netatmo.com/oauth2/token', [
@@ -134,19 +102,15 @@ class NetatmoService implements DestructableInterface {
         'refresh_token' => $this->config->get('refresh_token'),
       ],
     ]);
-
     $data = json_decode($response->getBody()->getContents(), TRUE);
     $this->kv->setWithExpire('access_token', $data['access_token'], $data['expires_in']);
     $this->kv->set('expires', time() + $data['expires_in']);
-    $this->config
-      ->set('refresh_token', $data['refresh_token'])
-      ->save();
-
+    $this->config->set('refresh_token', $data['refresh_token'])->save();
     return $data['access_token'];
   }
 
   /**
-   * Gets Netatmo modules (not stations).
+   * Récupère la liste des modules Netatmo.
    *
    * @return array
    */
@@ -172,7 +136,7 @@ class NetatmoService implements DestructableInterface {
   }
 
   /**
-   * Provisions a Sensor asset + DataStream for each mapped module.
+   * Provisionne un asset Sensor + DataStream pour chaque module mappé.
    */
   public function provisionSensors(array $mapping): void {
     $fetched = $this->config->get('fetched_modules') ?: [];
@@ -180,44 +144,47 @@ class NetatmoService implements DestructableInterface {
     foreach ($fetched as $m) {
       $nameMap[$m['id']] = $m['name'];
     }
-
     $asset_storage = $this->entityTypeManager->getStorage('asset');
     $stream_storage = $this->entityTypeManager->getStorage('data_stream');
-
     foreach ($mapping as $module_id => $parent_id) {
       $label = $nameMap[$module_id] ?? $module_id;
       $sensorName = 'Netatmo ' . $label;
-
-      $sensor = $asset_storage->create([
-        'type' => 'sensor',
-        'name' => $sensorName,
-      ]);
+      // Réutilise ou crée le sensor.
+      $existing_sensors = $asset_storage->loadByProperties(['type' => 'sensor', 'name' => $sensorName]);
+      $sensor = $existing_sensors ? reset($existing_sensors) : $asset_storage->create(['type' => 'sensor', 'name' => $sensorName]);
+      // Associe le parent si besoin.
       if ($sensor->hasField('parents')) {
-        $sensor->get('parents')->appendItem(['target_id' => $parent_id]);
+        $current = array_column($sensor->get('parents')->getValue(), 'target_id');
+        if (!in_array($parent_id, $current)) {
+          $sensor->get('parents')->appendItem(['target_id' => $parent_id]);
+        }
       }
-
-      $stream = $stream_storage->create([
-        'type' => 'basic',
-        'name' => $sensorName,
-      ]);
-      $stream->save();
-
-      $sensor->get('data_stream')->appendItem($stream);
+      // Réutilise ou crée le DataStream.
+      $existing_streams = $stream_storage->loadByProperties(['name' => $sensorName]);
+      $stream = $existing_streams ? reset($existing_streams) : $stream_storage->create(['type' => 'basic', 'name' => $sensorName]);
+      if (!$existing_streams) {
+        $stream->save();
+      }
+      // Attache le flux.
+      $attached = array_column($sensor->get('data_stream')->getValue(), 'target_id');
+      if (!in_array($stream->id(), $attached)) {
+        $sensor->get('data_stream')->appendItem(['target_id' => $stream->id()]);
+      }
       $sensor->save();
     }
   }
 
   /**
-   * Adds a data point to an asset.
+   * Ajoute un point de donnée à un asset.
    */
   public function addDataToAsset(AssetInterface $asset, string $name, $value): object {
-    // Your existing logic here.
+    // Votre logique existante.
   }
 
   /**
    * {@inheritdoc}
    */
   public function destruct(): void {
-    // No cleanup needed.
+    // Rien à nettoyer.
   }
 }
