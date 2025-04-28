@@ -148,6 +148,51 @@ class NetatmoService implements DestructableInterface {
     $asset_storage = $this->entityTypeManager->getStorage('asset');
     $stream_storage = $this->entityTypeManager->getStorage('data_stream');
 
+    foreach ($mapping as $module_id => $value) {
+      // $value peut être soit l'ID, soit un tableau ['asset' => ID].
+      $parent_id = is_array($value) ? ($value['asset'] ?? NULL) : $value;
+      if (empty($parent_id)) {
+        continue;
+      }
+      $label = $nameMap[$module_id] ?? $module_id;
+      $sensorName = 'Netatmo ' . $label;
+
+      // Réutilise ou crée le sensor.
+      $existing = $asset_storage->loadByProperties(['type' => 'sensor', 'name' => $sensorName]);
+      $sensor = $existing ? reset($existing) : $asset_storage->create(['type' => 'sensor', 'name' => $sensorName]);
+
+      // Associer le parent via le base-field 'parent'.
+      if ($sensor->hasField('parent')) {
+        // Charger l'entité parent.
+        $parent_entity = $asset_storage->load($parent_id);
+        if ($parent_entity) {
+          $current_ids = array_map(function ($ent) { return $ent->id(); }, $sensor->get('parent')->referencedEntities());
+          if (!in_array($parent_entity->id(), $current_ids)) {
+            $sensor->get('parent')->appendItem($parent_entity);
+          }
+        }
+      }
+
+      // Réutilise ou crée le DataStream.
+      $existing_stream = $stream_storage->loadByProperties(['name' => $sensorName]);
+      $stream = $existing_stream ? reset($existing_stream) : $stream_storage->create(['type' => 'basic', 'name' => $sensorName]);
+      if (!$existing_stream) {
+        $stream->save();
+      }
+
+      // Attache le flux au capteur.
+      $attached_ids = array_map(function ($ent) { return $ent->id(); }, $sensor->get('data_stream')->referencedEntities());
+      if (!in_array($stream->id(), $attached_ids)) {
+        $sensor->get('data_stream')->appendItem($stream);
+      }
+
+      $sensor->save();
+    }
+  }
+
+    $asset_storage = $this->entityTypeManager->getStorage('asset');
+    $stream_storage = $this->entityTypeManager->getStorage('data_stream');
+
     foreach ($mapping as $module_id => $parent_id) {
       $label = $nameMap[$module_id] ?? $module_id;
       $sensorName = 'Netatmo ' . $label;
