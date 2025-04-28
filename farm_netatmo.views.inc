@@ -1,10 +1,5 @@
 <?php
 
-/**
- * @file
- * Définit la vue par défaut pour afficher les données Netatmo sur un asset.
- */
-
 use Drupal\views\Entity\View;
 
 /**
@@ -22,7 +17,7 @@ function farm_netatmo_views_api() {
 function farm_netatmo_views_default_views() {
   $views = [];
 
-  // Création de la vue 'netatmo_sensor_data'.
+  // Create the view.
   $view = View::create([
     'id' => 'netatmo_sensor_data',
     'label' => t('Données Netatmo capteur'),
@@ -32,16 +27,20 @@ function farm_netatmo_views_default_views() {
     'display' => [],
   ]);
 
-  // Master display.
-  $display = $view->addDisplay('default', 'Master', 'master');
-  $display->setDisplayOption('path', 'farm/asset/%/netatmo-data');
-  $display->setDisplayOption('access', [
+  // Add a Page display for the asset data.
+  $page = $view->addDisplay('page', 'Page', 'page_1');
+
+  // URL path: /farm/asset/%/netatmo-data
+  $page->setDisplayOption('page_1', 'path', 'farm/asset/%/netatmo-data');
+
+  // Permission access.
+  $page->setDisplayOption('page_1', 'access', [
     'type' => 'perm',
     'perm' => 'access content',
   ]);
 
-  // Contextual filter: data_stream_basic.id <- argument from URL.
-  $display->setDisplayOption('arguments', [
+  // Contextual filter: data_stream_basic.id from URL.
+  $page->setDisplayOption('page_1', 'arguments', [
     'id' => [
       'id' => 'id',
       'table' => 'data_stream_basic',
@@ -51,8 +50,8 @@ function farm_netatmo_views_default_views() {
     ],
   ]);
 
-  // Fields.
-  $display->setDisplayOption('fields', [
+  // Fields: timestamp and value.
+  $page->setDisplayOption('page_1', 'fields', [
     'timestamp' => [
       'id' => 'timestamp',
       'table' => 'data_stream_basic',
@@ -68,8 +67,8 @@ function farm_netatmo_views_default_views() {
     ],
   ]);
 
-  // Sort criteria: timestamp descending.
-  $display->setDisplayOption('sorts', [
+  // Sort by timestamp desc.
+  $page->setDisplayOption('page_1', 'sorts', [
     'timestamp' => [
       'id' => 'timestamp',
       'table' => 'data_stream_basic',
@@ -78,8 +77,8 @@ function farm_netatmo_views_default_views() {
     ],
   ]);
 
-  // Style: Chart (si plugin disponible), sinon table.
-  $display->setDisplayOption('style', [
+  // Style: Chart line.
+  $page->setDisplayOption('page_1', 'style', [
     'type' => 'chart',
     'options' => [
       'chart_type' => 'line',
@@ -88,7 +87,7 @@ function farm_netatmo_views_default_views() {
     ],
   ]);
 
-  // Sauvegarde de la vue par défaut.
+  // Register the view.
   $views[$view->id()] = $view;
   return $views;
 }
