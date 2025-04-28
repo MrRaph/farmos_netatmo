@@ -172,7 +172,7 @@ class NetatmoService implements DestructableInterface {
         if ($parent_entity) {
           $current_ids = array_map(fn($ent) => $ent->id(), $sensor->get('parent')->referencedEntities());
           if (!in_array($parent_entity->id(), $current_ids)) {
-            $sensor->get('parent')->appendItem($parent_entity);
+            $sensor->get('parent')->appendItem(['target_id' => $parent_entity->id()]);
           }
         }
       }
