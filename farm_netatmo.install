@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Hooks d’installation/mise-à-jour pour farmos_netatmo.
+ * Hooks d’installation/mise-à-jour pour farm_netatmo.
  */
 
 use Drupal\field\Entity\FieldConfig;
@@ -14,7 +14,7 @@ use Drupal\field\Entity\FieldStorageConfig;
  * - Crée le champ `field_netatmo_device_id` (string, longueur 50)
  *   sur le bundle *sensor* si nécessaire.
  */
-function farmos_netatmo_install(): void {
+function farm_netatmo_install(): void {
   $field_name   = 'field_netatmo_device_id';
   $entity_type  = 'asset';
   $bundle       = 'sensor';

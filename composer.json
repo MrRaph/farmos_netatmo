@@ -1,5 +1,5 @@
 {
-  "name": "drupal/farmos_netatmo",
+  "name": "drupal/farm_netatmo",
   "description": "Integrates Netatmo weather stations with farmOS",
   "type": "drupal-module",
   "license": "GPL-2.0-or-later",
@@ -8,7 +8,7 @@
   },
   "autoload": {
     "psr-4": {
-      "Drupal\\farmos_netatmo\\": "src/"
+      "Drupal\\farm_netatmo\\": "src/"
     }
   }
 }

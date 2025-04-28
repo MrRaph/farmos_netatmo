@@ -1,10 +1,10 @@
 <?php
 
-namespace Drupal\farmos_netatmo\Commands;
+namespace Drupal\farm_netatmo\Commands;
 
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drush\Commands\DrushCommands;
-use Drupal\farmos_netatmo\NetatmoService;
+use Drupal\farm_netatmo\NetatmoService;
 
 class FarmNetatmoCommands extends DrushCommands {
 
@@ -16,7 +16,7 @@ class FarmNetatmoCommands extends DrushCommands {
   /**
    * Crée les assets sensors pour chaque module Netatmo.
    *
-   * @command farmos_netatmo:create-assets
+   * @command farm_netatmo:create-assets
    */
   public function createAssets() {
     $devices = $this->netatmoService->listDevices();

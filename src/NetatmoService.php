@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\farmos_netatmo;
+namespace Drupal\farm_netatmo;
 
 use Drupal\asset\Entity\AssetInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
@@ -40,10 +40,10 @@ class NetatmoService implements DestructableInterface {
     DataStreamTypeManager $stream_manager,
   ) {
     $this->httpClient      = $http_client;
-    $this->kv              = $kv_factory->get('farmos_netatmo_tokens');
-    $this->logger          = $logger_factory->get('farmos_netatmo');
+    $this->kv              = $kv_factory->get('farm_netatmo_tokens');
+    $this->logger          = $logger_factory->get('farm_netatmo');
     $this->configFactory   = $config_factory;
-    $this->config          = $config_factory->getEditable('farmos_netatmo.settings');
+    $this->config          = $config_factory->getEditable('farm_netatmo.settings');
     $this->basicDataStream = $stream_manager->createInstance('basic');
   }
 
