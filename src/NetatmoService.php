@@ -62,7 +62,12 @@ class NetatmoService implements DestructableInterface {
    *
    * @var \Drupal\data_stream\DataStreamTypeManager
    */
-  protected DataStreamTypeManager $basicDataStream;
+  /**
+   * Type de flux de données basique (plugin Netatmo DataStream).
+   *
+   * @var object
+   */
+  protected $basicDataStream;
 
   /* -----------------------------------------------------------------------
    * Constructeur
