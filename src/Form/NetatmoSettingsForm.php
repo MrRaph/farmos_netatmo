@@ -94,41 +94,35 @@ class NetatmoSettingsForm extends ConfigFormBase {
 
   // Si on a déjà récupéré des modules, on peut afficher un tableau de mapping.
   $fetched = $config->get('fetched_modules') ?: [];
-  if (!empty($fetched)) {
-    $header = [
-      'module' => $this->t('Module'),
-      'asset'  => $this->t('Assign to asset'),
-    ];
-    $rows = [];
-    foreach ($fetched as $module) {
-      $rows[] = [
-        'module' => $module['name'],
-        'asset'  => [
-          'data' => [
-            '#type' => 'entity_autocomplete',
-            '#target_type' => 'asset',
-            '#selection_settings' => ['target_bundles' => ['land', 'property']],
-            '#default_value' => $module['assigned_asset']
-              ? \Drupal::entityTypeManager()->getStorage('asset')->load($module['assigned_asset'])
-              : NULL,
-            '#name' => "mapping[{$module['id']}]",
-          ],
+  $header = [
+    'module' => $this->t('Module'),
+    'asset'  => $this->t('Assign to asset'),
+  ];
+  $rows = [];
+  foreach ($fetched as $module) {
+    // S’il n’y a pas encore d’asset assigné, on prend NULL.
+    $assigned_asset_id = isset($module['assigned_asset']) ? $module['assigned_asset'] : NULL;
+    $rows[] = [
+      'module' => $module['name'],
+      'asset'  => [
+        'data' => [
+          '#type' => 'entity_autocomplete',
+          '#target_type' => 'asset',
+          '#selection_settings' => ['target_bundles' => ['land', 'property']],
+          // Utilisation d'isset() pour éviter l’erreur.
+          '#default_value' => $assigned_asset_id
+            ? \Drupal::entityTypeManager()->getStorage('asset')->load($assigned_asset_id)
+            : NULL,
+          '#name' => "mapping[{$module['id']}]",
         ],
-      ];
-    }
-    $form['modules_section']['mapping_table'] = [
-      '#type' => 'table',
-      '#header' => $header,
-      '#rows' => $rows,
-    ];
-
-    // Bouton pour enregistrer l’affectation modules → assets.
-    $form['modules_section']['save_mapping'] = [
-      '#type' => 'submit',
-      '#value' => $this->t('Save module assignments'),
-      '#submit' => ['::submitForm'],
+      ],
     ];
   }
+  $form['modules_section']['mapping_table'] = [
+    '#type' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+  ];
 
   // Bouton AJAX “Récupérer les données Netatmo” uniquement si autorisé.
   if ($refresh_token) {
