@@ -272,6 +272,38 @@ class NetatmoService implements DestructableInterface {
     return $this->kv->get('oauth_state');
   }
 
+    /**
+   * Construit l'URL d'autorisation OAuth2 Netatmo.
+   *
+   * @return string
+   *   L'URL vers laquelle rediriger l'utilisateur pour autoriser l'app.
+   */
+  public function buildAuthorizeUrl(): string {
+    // Génération d'un state pour sécuriser le callback.
+    $state = bin2hex(random_bytes(16));
+    $this->storeState($state);
+
+    $params = [
+      'client_id'     => $this->config->get('client_id'),
+      'redirect_uri'  => $this->getRedirectUri(),
+      'response_type' => 'code',
+      'scope'         => 'read_station',
+      'state'         => $state,
+    ];
+    return 'https://api.netatmo.com/oauth2/authorize?' . http_build_query($params);
+  }
+
+  /**
+   * Retourne l'URL de redirection pour le callback OAuth2.
+   *
+   * @return string
+   */
+  public function getRedirectUri(): string {
+    // Route nommée définie dans votre module, pointant vers
+    // AuthorizationController::callback().
+    return \Drupal::url('farm_netatmo.callback', [], ['absolute' => TRUE]);
+  }
+
 
   /**
    * {@inheritdoc}
