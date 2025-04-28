@@ -71,6 +71,9 @@ class NetatmoService implements DestructableInterface {
    * OAuth : helpers
    * --------------------------------------------------------------------- */
 
+  /**
+   * Échange le code OAuth contre un access+refresh token.
+   */
   public function exchangeAuthorizationCode(string $code): void {
     $response = $this->httpClient->request('POST', 'https://api.netatmo.com/oauth2/token', [
       'form_params' => [
@@ -122,99 +125,66 @@ class NetatmoService implements DestructableInterface {
       'headers' => ['Authorization' => 'Bearer ' . $token],
     ]);
     $data = json_decode($response->getBody()->getContents(), TRUE);
-    $modules = [];
-    foreach ($data['body']['devices'] as $station) {
-      if (empty($station['modules'])) {
-        continue;
-      }
-      foreach ($station['modules'] as $module) {
-        $modules[] = [
-          'id'   => $module['_id'],
-          'name' => $module['module_name'] ?? $module['type'],
+    \$modules = [];
+    foreach (\$data['body']['devices'] as \$station) {
+      if (empty(\$station['modules'])) continue;
+      foreach (\$station['modules'] as \$module) {
+        \$modules[] = [
+          'id'   => \$module['_id'],
+          'name' => \$module['module_name'] ?? \$module['type'],
         ];
       }
     }
-    return $modules;
+    return \$modules;
   }
 
   /**
    * Provisionne un asset Sensor + DataStream pour chaque module mappé.
    */
-  public function provisionSensors(array $mapping): void {
-    // Map module_id to name.
-    $fetched = $this->config->get('fetched_modules') ?: [];
-    $nameMap = [];
-    foreach ($fetched as $m) {
-      $nameMap[$m['id']] = $m['name'];
+  public function provisionSensors(array \$mapping): void {
+    // Récupérer map id=>nom.
+    \$fetched = \$this->config->get('fetched_modules') ?: [];
+    \$nameMap = [];
+    foreach (\$fetched as \$m) {
+      \$nameMap[\$m['id']] = \$m['name'];
     }
 
-    $asset_storage  = $this->entityTypeManager->getStorage('asset');
-    $stream_storage = $this->entityTypeManager->getStorage('data_stream');
+    \$asset_storage  = \$this->entityTypeManager->getStorage('asset');
+    \$stream_storage = \$this->entityTypeManager->getStorage('data_stream');
 
-    foreach ($mapping as $module_id => $parent_id) {
-      $label      = $nameMap[$module_id] ?? $module_id;
-      $sensorName = 'Netatmo ' . $label;
+    foreach (\$mapping as \$module_id => \$parent_id) {
+      \$label      = \$nameMap[\$module_id] ?? \$module_id;
+      \$sensorName = 'Netatmo ' . \$label;
 
       // Créer l’asset sensor.
-      $sensor = $asset_storage->create([
+      \$sensor = \$asset_storage->create([
         'type' => 'sensor',
-        'name' => $sensorName,
+        'name' => \$sensorName,
       ]);
-      
-      // Associer le parent via le champ base 'parents'.
-      if ($sensor->hasField('parents')) {
-        $sensor->get('parents')->appendItem(['target_id' => $parent_id]);
+
+      // Associer le parent avec base-field 'parents'.
+      if (\$sensor->hasField('parents')) {
+        \$sensor->get('parents')->appendItem(['target_id' => \$parent_id]);
       }
 
       // Créer le DataStream.
-      $stream = $stream_storage->create([
+      \$stream = \$stream_storage->create([
         'type' => 'basic',
-        'name' => $sensorName,
+        'name' => \$sensorName,
       ]);
+      \$stream->save();
 
       // Attacher le flux au capteur.
-      $sensor->get('data_stream')->appendItem($stream);
-      
-      $sensor->save();
-    }
-  }
-
-    $asset_storage  = $this->entityTypeManager->getStorage('asset');
-    $stream_storage = $this->entityTypeManager->getStorage('data_stream');
-
-    foreach ($mapping as $module_id => $parent_id) {
-      $label      = $nameMap[$module_id] ?? $module_id;
-      $sensorName = 'Netatmo ' . $label;
-
-      // Créer l’asset sensor.
-      $sensor = $asset_storage->create([
-        'type' => 'sensor',
-        'name' => $sensorName,
-      ]);
-      $sensor->save();
-
-      // Associer le parent (nom du champ: field_parent).
-      $sensor->get('field_parent')->appendItem(['target_id' => $parent_id]);
-      $sensor->save();
-
-      // Créer le DataStream.
-      $stream = $stream_storage->create([
-        'type' => 'basic',
-        'name' => $sensorName,
-      ]);
-      $stream->save();
-
-      // Attacher le flux au capteur.
-      $sensor->get('data_stream')->appendItem($stream);
-      $sensor->save();
+      \$sensor->get('data_stream')->appendItem(\$stream);
+      \$sensor->save();
     }
   }
 
   /**
    * Ajouter un point de donnée à un asset.
    */
-  public function addDataToAsset(AssetInterface $asset, string $name, $value): object {
-    // … votre logique existante …
+  public function addDataToAsset(AssetInterface \$asset, string \$name, \$value): object {
+    // ... votre logique existante ...
   }
 
   /**
