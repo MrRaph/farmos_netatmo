@@ -89,6 +89,9 @@ class NetatmoService implements DestructableInterface {
       ->save();
   }
 
+  /**
+   * Récupère un access token (rafraîchit si nécessaire).
+   */
   public function getAccessToken(): string {
     if (($tok = $this->kv->get('access_token')) && $this->kv->get('expires') > time()) {
       return $tok;
@@ -159,8 +162,8 @@ class NetatmoService implements DestructableInterface {
       ]);
       $sensor->save();
 
-                  // Associer le parent (référence multiple sur "field_parents")..
-                  $sensor->get('field_parents')->appendItem(['target_id' => $parent_id]);
+      // Associer le parent (nom du champ: field_parent).
+      $sensor->get('field_parent')->appendItem(['target_id' => $parent_id]);
       $sensor->save();
 
       // Créer le DataStream.
@@ -183,5 +186,10 @@ class NetatmoService implements DestructableInterface {
     // … votre logique existante …
   }
 
-  public function destruct(): void {}
+  /**
+   * {@inheritdoc}
+   */
+  public function destruct(): void {
+    // Rien à nettoyer.
+  }
 }
