@@ -15,7 +15,7 @@ use GuzzleHttp\ClientInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 
 /**
- * Service d'intégration Netatmo pour farmOS.
+* Service d'intégration Netatmo pour farmOS.
  */
 class NetatmoService implements DestructableInterface {
 
@@ -253,17 +253,17 @@ class NetatmoService implements DestructableInterface {
 
     /**
    * Stocke le paramètre d'état OAuth pour vérification ultérieure.
-   *
-   * @param string $state
-   *   La valeur du paramètre state reçu de Netatmo.
-   */
-  public function storeState(string $state): void {
-    // On conserve l'état dans le KeyValue.
-    $this->kv->set('oauth_state', $state);
-  }
+*
+* @param string $state
+*   La valeur du paramètre state reçu de Netatmo.
+*/
 
-  /**
-   * Récupère la valeur d'état OAuth précédemment stockée.
+public function storeState( string $state ): void {
+    $this->kv->set( 'oauth_state', $state );
+}
+
+/**
+* Récupère la valeur d'état OAuth précédemment stockée.
    *
    * @return string|null
    *   Le state précédemment enregistré, ou NULL si absent.
@@ -277,8 +277,9 @@ class NetatmoService implements DestructableInterface {
    *
    * @return string
    *   L'URL vers laquelle rediriger l'utilisateur pour autoriser l'app.
-   */
-  public function buildAuthorizeUrl(): string {
+*/
+
+public function buildAuthorizeUrl(): string {
     // Génération d'un state pour sécuriser le callback.
     $state = bin2hex(random_bytes(16));
     $this->storeState($state);
@@ -295,19 +296,34 @@ class NetatmoService implements DestructableInterface {
 
   /**
    * Retourne l'URL de redirection pour le callback OAuth2.
-   *
-   * @return string
-   */
-  public function getRedirectUri(): string {
-    return \Drupal\Core\Url::fromRoute('farm_netatmo.callback', [], [
-      'absolute' => TRUE,
-    ])->toString();
-  }
+    *
+    * @return string
+    */
 
-  /**
-   * {@inheritdoc}
-   */
-  public function destruct(): void {
-    // Rien à nettoyer.
-  }
+    public function getRedirectUri(): string {
+        return \Drupal\Core\Url::fromRoute( 'farm_netatmo.callback', [], [
+            'absolute' => TRUE,
+        ] )->toString();
+    }
+
+    /**
+    * Vérifie que le state reçu correspond à celui stocké.
+    *
+    * @param string $state
+    *   La valeur du paramètre state reçu dans la requête.
+    *
+    * @return bool
+    *   TRUE si le state est valide, FALSE sinon.
+    */
+
+    public function isStateValid( string $state ): bool {
+        return $state === $this->retrieveState();
+    }
+
+    /**
+    * {@inheritdoc} */
+
+    public function destruct(): void {
+        // Rien à nettoyer.
+    }
 }
