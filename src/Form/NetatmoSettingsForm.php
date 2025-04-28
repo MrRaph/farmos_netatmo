@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\farm_netatmo\Form;
+namespace Drupal\farmos_netatmo\Form;
 
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
