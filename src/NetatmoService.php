@@ -11,7 +11,6 @@ use Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\data_stream\DataStreamTypeManager;
-use Drupal\data_stream\Entity\DataPoint;
 use GuzzleHttp\ClientInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 
@@ -212,24 +211,35 @@ class NetatmoService implements DestructableInterface {
   /**
    * Ajoute un point de donnée à un asset.
    */
-  public function addDataToAsset(AssetInterface $asset, string $name, $value): DataPoint {
+  public function addDataToAsset(AssetInterface $asset, string $name, $value): object {
+    // Détermination du nom du stream pour cette métrique.
     $streamName = $asset->label() . ' ' . ucfirst($name);
-    $stream_storage = $this->entityTypeManager->getStorage('data_stream');
-    $streams = $stream_storage->loadByProperties(['name' => $streamName]);
+    $streamStorage = $this->entityTypeManager->getStorage('data_stream');
+    $streams = $streamStorage->loadByProperties(['name' => $streamName]);
     if ($streams) {
       $stream = reset($streams);
     }
     else {
-      $stream = $stream_storage->create(['type' => 'basic', 'name' => $streamName]);
+      $stream = $streamStorage->create(['type' => 'basic', 'name' => $streamName]);
       $stream->save();
+      // Attacher le stream au sensor.
       $asset->get('data_stream')->appendItem(['target_id' => $stream->id()]);
       $asset->save();
     }
+
+    // Création du DataPoint via le storage.
+    $dpStorage = $this->entityTypeManager->getStorage('data_point');
     $timestamp = \Drupal::time()->getRequestTime();
-    $datapoint = DataPoint::create(['stream' => $stream->id(), 'timestamp' => $timestamp, 'value' => $value]);
+    $datapoint = $dpStorage->create([
+      'stream'    => $stream->id(),
+      'timestamp' => $timestamp,
+      'value'     => $value,
+    ]);
     $datapoint->save();
+
     return $datapoint;
   }
+
 
   /**
    * {@inheritdoc}
