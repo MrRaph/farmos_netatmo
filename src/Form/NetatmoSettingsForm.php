@@ -86,17 +86,30 @@ class NetatmoSettingsForm extends ConfigFormBase {
       '#required' => TRUE,
     ];
 
-    // Bouton Ajax pour récupérer les modules Netatmo.
-    $form['actions']['fetch_modules'] = [
-      '#type' => 'submit',
-      '#value' => $this->t('Récupérer les modules Netatmo'),
-      '#submit' => ['::fetchModules'],
-      '#ajax' => [
-        'callback' => '::ajaxRefresh',
-        'wrapper' => 'netatmo-modules-wrapper',
-        'effect' => 'fade',
-      ],
-    ];
+    // Lien ou bouton d'authentification Netatmo (existant dans votre form).
+    // Par exemple, un lien via AuthorizationController.
+    if (! $this->netatmoService->isAuthorized()) {
+      $form['authorize'] = [
+        '#type' => 'link',
+        '#title' => $this->t('Autoriser l’accès à Netatmo'),
+        '#url' => \Drupal\Core\Url::fromRoute('farm_netatmo.authorize'),
+        '#attributes' => ['class' => ['button']],
+      ];
+    }
+
+    // N’afficher le bouton de récupération des modules QUE si on est authentifié.
+    if ($this->netatmoService->isAuthorized()) {
+      $form['actions']['fetch_modules'] = [
+        '#type' => 'submit',
+        '#value' => $this->t('Récupérer les modules Netatmo'),
+        '#submit' => ['::fetchModules'],
+        '#ajax' => [
+          'callback' => '::ajaxRefresh',
+          'wrapper' => 'netatmo-modules-wrapper',
+          'effect' => 'fade',
+        ],
+      ];
+    }
 
     // Conteneur à rafraîchir.
     $form['modules_section'] = [
