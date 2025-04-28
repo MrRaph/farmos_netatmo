@@ -1,9 +1,9 @@
 <?php
 
-namespace Drupal\farm_netatmo\Controller;
+namespace Drupal\farmos_netatmo\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\farm_netatmo\NetatmoService;
+use Drupal\farmos_netatmo\NetatmoService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,7 +19,7 @@ class AuthorizationController extends ControllerBase {
   ) {}
 
   public static function create(ContainerInterface $c): static {
-    return new static($c->get('farm_netatmo.netatmo_service'));
+    return new static($c->get('farmos_netatmo.netatmo_service'));
   }
 
   /**
@@ -41,7 +41,7 @@ class AuthorizationController extends ControllerBase {
 
     if (!$this->netatmo->isStateValid($state)) {
       $this->messenger()->addError($this->t('Invalid OAuth state.'));
-      return $this->redirect('farm_netatmo.settings');
+      return $this->redirect('farmos_netatmo.settings');
     }
 
     try {
@@ -49,11 +49,11 @@ class AuthorizationController extends ControllerBase {
       $this->messenger()->addStatus($this->t('Netatmo authorization successful.'));
     }
     catch (\Throwable $e) {
-      $this->logger('farm_netatmo')->error($e->getMessage());
+      $this->logger('farmos_netatmo')->error($e->getMessage());
       $this->messenger()->addError($this->t('Failed to authorize Netatmo: @m', ['@m' => $e->getMessage()]));
     }
 
-    return $this->redirect('farm_netatmo.settings');
+    return $this->redirect('farmos_netatmo.settings');
   }
 
 }

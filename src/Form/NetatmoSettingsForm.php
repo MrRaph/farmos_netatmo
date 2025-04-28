@@ -4,7 +4,7 @@ namespace Drupal\farmos_netatmo\Form;
 
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\farm_netatmo\NetatmoService;
+use Drupal\farmos_netatmo\NetatmoService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\Core\Url;
 
@@ -18,19 +18,19 @@ class NetatmoSettingsForm extends ConfigFormBase {
   ) {}
 
   public static function create(ContainerInterface $c): static {
-    return new static($c->get('farm_netatmo.netatmo_service'));
+    return new static($c->get('farmos_netatmo.netatmo_service'));
   }
 
   public function getFormId(): string {
-    return 'farm_netatmo_settings_form';
+    return 'farmos_netatmo_settings_form';
   }
 
   protected function getEditableConfigNames(): array {
-    return ['farm_netatmo.settings'];
+    return ['farmos_netatmo.settings'];
   }
 
   public function buildForm(array $form, FormStateInterface $form_state): array {
-    $config = $this->config('farm_netatmo.settings');
+    $config = $this->config('farmos_netatmo.settings');
 
     $form['credentials'] = [
       '#type'  => 'fieldset',
@@ -64,7 +64,7 @@ class NetatmoSettingsForm extends ConfigFormBase {
       $form['authorize'] = [
          '#type' => 'link',
          '#title' => $this->t('Authorize application with Netatmo'),
-         '#url' => Url::fromRoute('farm_netatmo.authorize'),
+         '#url' => Url::fromRoute('farmos_netatmo.authorize'),
          '#attributes' => ['class' => ['button', 'button--primary']],
        ];
     }
@@ -73,7 +73,7 @@ class NetatmoSettingsForm extends ConfigFormBase {
   }
 
   public function submitForm(array &$form, FormStateInterface $form_state): void {
-    $this->config('farm_netatmo.settings')
+    $this->config('farmos_netatmo.settings')
       ->set('client_id', $form_state->getValue('client_id'))
       ->set('client_secret', $form_state->getValue('client_secret'))
       ->save();

@@ -1,16 +1,16 @@
 <?php
 
-namespace Drupal\farm_netatmo\Plugin\QueueWorker;
+namespace Drupal\farmos_netatmo\Plugin\QueueWorker;
 
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Queue\QueueWorkerBase;
-use Drupal\farm_netatmo\NetatmoService;
+use Drupal\farmos_netatmo\NetatmoService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * @QueueWorker(
- *   id = "farm_netatmo_sync",
+ *   id = "farmos_netatmo_sync",
  *   title = @Translation("Synchronise les mesures Netatmo"),
  *   cron = {"time" = 60}
  * )
@@ -37,7 +37,7 @@ class NetatmoSyncQueueWorker extends QueueWorkerBase implements ContainerFactory
       $configuration,
       $plugin_id,
       $plugin_definition,
-      $container->get('farm_netatmo.netatmo_service'),
+      $container->get('farmos_netatmo.netatmo_service'),
       $container->get('entity_type.manager')
     );
   }

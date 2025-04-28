@@ -6,19 +6,19 @@ use Drupal\asset\Entity\AssetInterface;
  * Implémente hook_cron().
  *
  * - Crée les assets manquants pour chaque module Netatmo.
- * - Alimente la queue farm_netatmo_sync.
+ * - Alimente la queue farmos_netatmo_sync.
  */
-function farm_netatmo_cron() {
-  /** @var \Drupal\farm_netatmo\NetatmoService $api */
-  $api     = \Drupal::service('farm_netatmo.netatmo_service');
+function farmos_netatmo_cron() {
+  /** @var \Drupal\farmos_netatmo\NetatmoService $api */
+  $api     = \Drupal::service('farmos_netatmo.netatmo_service');
   $storage = \Drupal::entityTypeManager()->getStorage('asset');
-  $queue   = \Drupal::queue('farm_netatmo_sync');
+  $queue   = \Drupal::queue('farmos_netatmo_sync');
 
   try {
     $devices = $api->listDevices();
   }
   catch (\Throwable $e) {
-    \Drupal::logger('farm_netatmo')->error($e->getMessage());
+    \Drupal::logger('farmos_netatmo')->error($e->getMessage());
     return;
   }
 
@@ -55,7 +55,7 @@ function farm_netatmo_cron() {
     $queue->createItem($asset->id());
   }
 
-  \Drupal::logger('farm_netatmo')->notice(
+  \Drupal::logger('farmos_netatmo')->notice(
     'Netatmo cron : @new assets créés, @all modules en file.',
     ['@new' => $created, '@all' => count($devices)],
   );

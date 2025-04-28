@@ -1,6 +1,6 @@
 services:
-  farm_netatmo.netatmo_service:
-    class: Drupal\farm_netatmo\NetatmoService
+  farmos_netatmo.netatmo_service:
+    class: Drupal\farmos_netatmo\NetatmoService
     arguments:
       - '@http_client'
       - '@keyvalue.expirable'
@@ -10,15 +10,15 @@ services:
     tags:
       - { name: needs_destruction }
 
-  farm_netatmo.authorization_controller:
-    class: Drupal\farm_netatmo\Controller\AuthorizationController
+  farmos_netatmo.authorization_controller:
+    class: Drupal\farmos_netatmo\Controller\AuthorizationController
     arguments:
-      - '@farm_netatmo.netatmo_service'
+      - '@farmos_netatmo.netatmo_service'
 
-  farm_netatmo.drush_commands:
-    class: Drupal\farm_netatmo\Commands\FarmNetatmoCommands
+  farmos_netatmo.drush_commands:
+    class: Drupal\farmos_netatmo\Commands\FarmNetatmoCommands
     arguments:
-      - '@farm_netatmo.netatmo_service'
+      - '@farmos_netatmo.netatmo_service'
       - '@entity_type.manager'
     tags:
       - { name: drush.command }
