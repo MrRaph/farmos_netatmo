@@ -8,6 +8,7 @@ use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\farm_netatmo\NetatmoService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\Core\Url;
 
 /**
  * Formulaire d’administration Netatmo.
@@ -37,7 +38,7 @@ class NetatmoSettingsForm extends ConfigFormBase {
     EntityTypeManagerInterface $entityTypeManager
   ) {
     parent::__construct($config_factory);
-    $this->netatmoService = $netatmoService;
+    $this->netatmoService    = $netatmoService;
     $this->entityTypeManager = $entityTypeManager;
   }
 
@@ -72,7 +73,7 @@ class NetatmoSettingsForm extends ConfigFormBase {
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $config = $this->config('farm_netatmo.settings');
 
-    // Champs de base.
+    // --- Vos champs de base (client_id, client_secret) ---
     $form['client_id'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Client ID'),
@@ -86,19 +87,28 @@ class NetatmoSettingsForm extends ConfigFormBase {
       '#required' => TRUE,
     ];
 
-    // Lien ou bouton d'authentification Netatmo (existant dans votre form).
-    // Par exemple, un lien via AuthorizationController.
-    if (! $this->netatmoService->isAuthorized()) {
+    // --- Affichage du statut d’autorisation (refresh_token caché) ---
+    $refresh_token = $config->get('refresh_token');
+    $form['refresh_token'] = [
+      '#type' => 'item',
+      '#title' => $this->t('Authorization status'),
+      '#markup' => $refresh_token
+        ? $this->t('Authorized ✅')
+        : $this->t('Not yet authorized ❌'),
+    ];
+
+    // --- Bouton “Autoriser” uniquement si client_id + client_secret sont remplis ---
+    if ($config->get('client_id') && $config->get('client_secret')) {
       $form['authorize'] = [
         '#type' => 'link',
-        '#title' => $this->t('Autoriser l’accès à Netatmo'),
-        '#url' => \Drupal\Core\Url::fromRoute('farm_netatmo.authorize'),
-        '#attributes' => ['class' => ['button']],
+        '#title' => $this->t('Authorize application with Netatmo'),
+        '#url' => Url::fromRoute('farm_netatmo.authorize'),
+        '#attributes' => ['class' => ['button', 'button--primary']],
       ];
     }
 
-    // N’afficher le bouton de récupération des modules QUE si on est authentifié.
-    if ($this->netatmoService->isAuthorized()) {
+    // --- Bouton Ajax “Récupérer les modules” UNIQUEMENT si autorisé ---
+    if ($refresh_token) {
       $form['actions']['fetch_modules'] = [
         '#type' => 'submit',
         '#value' => $this->t('Récupérer les modules Netatmo'),
@@ -111,12 +121,13 @@ class NetatmoSettingsForm extends ConfigFormBase {
       ];
     }
 
-    // Conteneur à rafraîchir.
+    // --- Conteneur Ajax à rafraîchir pour la table de mapping ---
     $form['modules_section'] = [
       '#type' => 'container',
       '#attributes' => ['id' => 'netatmo-modules-wrapper'],
     ];
 
+    // Si la liste des modules a déjà été chargée en Ajax, on construit la table
     $modules = $form_state->get('netatmo_modules');
     if (!empty($modules)) {
       // Charger les assets Land et Property.
@@ -130,12 +141,13 @@ class NetatmoSettingsForm extends ConfigFormBase {
         $options[$entity->id()] = $this->t('Property : @label', ['@label' => $entity->label()]);
       }
 
-      // Table de mapping.
+      // En-têtes et valeurs déjà enregistrées en config.
       $header = [
         'module' => $this->t('Module Netatmo'),
         'asset' => $this->t('Affecter à'),
       ];
-      $saved = $config->get('asset_mapping') ?: [];
+      $saved_map = $config->get('asset_mapping') ?: [];
+
       $rows = [];
       foreach ($modules as $m) {
         $rows[$m['id']] = [
@@ -144,10 +156,11 @@ class NetatmoSettingsForm extends ConfigFormBase {
             '#type' => 'select',
             '#options' => $options,
             '#empty_option' => $this->t('- Aucun -'),
-            '#default_value' => $saved[$m['id']] ?? NULL,
+            '#default_value' => $saved_map[$m['id']] ?? NULL,
           ],
         ];
       }
+
       $form['modules_section']['asset_mapping'] = [
         '#type' => 'table',
         '#header' => $header,
@@ -159,7 +172,7 @@ class NetatmoSettingsForm extends ConfigFormBase {
   }
 
   /**
-   * Ajax submit handler : récupère les modules Netatmo.
+   * Ajax submit handler : récupère les modules Netatmo et reconstruit le form.
    */
   public function fetchModules(array &$form, FormStateInterface $form_state): void {
     try {
@@ -168,12 +181,14 @@ class NetatmoSettingsForm extends ConfigFormBase {
       $form_state->setRebuild(TRUE);
     }
     catch (\Exception $e) {
-      $this->messenger()->addError($this->t('Impossible de joindre Netatmo : @msg', ['@msg' => $e->getMessage()]));
+      $this->messenger()->addError(
+        $this->t('Impossible de joindre Netatmo : @msg', ['@msg' => $e->getMessage()])
+      );
     }
   }
 
   /**
-   * Ajax callback : renvoie le conteneur modules_section.
+   * Ajax callback : renvoie uniquement le conteneur modules_section.
    */
   public function ajaxRefresh(array &$form, FormStateInterface $form_state) {
     return $form['modules_section'];
@@ -185,6 +200,7 @@ class NetatmoSettingsForm extends ConfigFormBase {
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     parent::submitForm($form, $form_state);
 
+    // On enregistre aussi le mapping si présent.
     $mapping = $form_state->getValue('asset_mapping') ?: [];
     $this->config('farm_netatmo.settings')
       ->set('client_id', $form_state->getValue('client_id'))
