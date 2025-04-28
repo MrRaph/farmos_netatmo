@@ -34,7 +34,7 @@ function farm_netatmo_views_default_views() {
 
   // Master display.
   $display = $view->addDisplay('default', 'Master', 'master');
-  $display->setDisplayOption('path', 'asset/%/netatmo-data');
+  $display->setDisplayOption('path', 'farm/asset/%/netatmo-data');
   $display->setDisplayOption('access', [
     'type' => 'perm',
     'perm' => 'access content',
