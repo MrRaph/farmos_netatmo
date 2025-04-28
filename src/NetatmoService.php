@@ -158,9 +158,13 @@ class NetatmoService implements DestructableInterface {
 
       // Associer le parent via le base-field 'parent'.
       if ($sensor->hasField('parent')) {
-        $current = array_column($sensor->get('parent')->getValue(), 'target_id');
-        if (!in_array($parent_id, $current)) {
-          $sensor->get('parent')->appendItem(['target_id' => $parent_id]);
+        // Charger l'entité parent.
+        $parent_entity = $asset_storage->load($parent_id);
+        if ($parent_entity) {
+          $current_ids = array_map(function ($ent) { return $ent->id(); }, $sensor->get('parent')->referencedEntities());
+          if (!in_array($parent_entity->id(), $current_ids)) {
+            $sensor->get('parent')->appendItem($parent_entity);
+          }
         }
       }
 
@@ -172,9 +176,9 @@ class NetatmoService implements DestructableInterface {
       }
 
       // Attache le flux au capteur.
-      $attached = array_column($sensor->get('data_stream')->getValue(), 'target_id');
-      if (!in_array($stream->id(), $attached)) {
-        $sensor->get('data_stream')->appendItem(['target_id' => $stream->id()]);
+      $attached_ids = array_map(function ($ent) { return $ent->id(); }, $sensor->get('data_stream')->referencedEntities());
+      if (!in_array($stream->id(), $attached_ids)) {
+        $sensor->get('data_stream')->appendItem($stream);
       }
 
       $sensor->save();
