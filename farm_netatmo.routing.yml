@@ -1,4 +1,3 @@
-# Formulaire de config (inchangé)
 farm_netatmo.settings:
   path: 'farm/settings/netatmo'
   defaults:
@@ -9,7 +8,6 @@ farm_netatmo.settings:
   options:
     _admin_route: TRUE
 
-# Bouton « Autoriser » → redirection vers Netatmo
 farm_netatmo.authorize:
   path: 'farm/settings/netatmo/authorize'
   defaults:
@@ -17,7 +15,6 @@ farm_netatmo.authorize:
   requirements:
     _permission: 'administer farm settings'
 
-# Callback OAuth ouvert (pas d’auth Drupal)
 farm_netatmo.callback:
   path: 'farm/netatmo/oauth/callback'
   defaults:

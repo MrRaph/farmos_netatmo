@@ -7,8 +7,6 @@ services:
       - '@logger.factory'
       - '@config.factory'
       - '@plugin.manager.data_stream_type'
-    tags:
-      - { name: needs_destruction }
 
   farm_netatmo.authorization_controller:
     class: Drupal\farm_netatmo\Controller\AuthorizationController
