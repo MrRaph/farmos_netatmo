@@ -2,6 +2,7 @@
 
 namespace Drupal\farm_netatmo;
 
+use Drupal\asset\Entity\AssetInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\Config;
 use Drupal\Core\DestructableInterface;
@@ -11,53 +12,33 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\data_stream\DataStreamTypeManager;
 use GuzzleHttp\ClientInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 
 /**
  * Service d'intégration Netatmo pour farmOS.
  */
 class NetatmoService implements DestructableInterface {
 
-  /**
-   * Client HTTP Guzzle.
-   *
-   * @var \\GuzzleHttp\\ClientInterface
-   */
+  /** @var \GuzzleHttp\ClientInterface */
   protected ClientInterface $httpClient;
 
-  /**
-   * Stockage clé/valeur expirable pour les tokens.
-   *
-   * @var \\Drupal\\Core\\KeyValueStore\\KeyValueStoreExpirableInterface
-   */
+  /** @var \Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface */
   protected KeyValueStoreExpirableInterface $kv;
 
-  /**
-   * Logger.
-   *
-   * @var \\Drupal\\Core\\Logger\\LoggerChannelInterface
-   */
+  /** @var \Drupal\Core\Logger\LoggerChannelInterface */
   protected LoggerChannelInterface $logger;
 
-  /**
-   * Usine de configuration.
-   *
-   * @var \\Drupal\\Core\\Config\\ConfigFactoryInterface
-   */
+  /** @var \Drupal\Core\Config\ConfigFactoryInterface */
   protected ConfigFactoryInterface $configFactory;
 
-  /**
-   * Configuration editable du module.
-   *
-   * @var \\Drupal\\Core\\Config\\Config
-   */
+  /** @var \Drupal\Core\Config\Config */
   protected Config $config;
 
-  /**
-   * Plugin basique de flux de données (non typé pour accepter l'instance renvoyée).
-   *
-   * @var object
-   */
+  /** @var object */
   protected $basicDataStream;
+
+  /** @var \Drupal\Core\Entity\EntityTypeManagerInterface */
+  protected EntityTypeManagerInterface $entityTypeManager;
 
   /**
    * Constructeur.
@@ -67,7 +48,8 @@ class NetatmoService implements DestructableInterface {
     KeyValueExpirableFactoryInterface $kv_factory,
     LoggerChannelFactoryInterface $logger_factory,
     ConfigFactoryInterface $config_factory,
-    DataStreamTypeManager $stream_manager
+    DataStreamTypeManager $stream_manager,
+    EntityTypeManagerInterface $entity_type_manager
   ) {
     $this->httpClient      = $http_client;
     $this->kv              = $kv_factory->get('farm_netatmo_tokens');
@@ -75,10 +57,11 @@ class NetatmoService implements DestructableInterface {
     $this->configFactory   = $config_factory;
     $this->config          = $config_factory->getEditable('farm_netatmo.settings');
     $this->basicDataStream = $stream_manager->createInstance('basic');
+    $this->entityTypeManager = $entity_type_manager;
   }
 
   /**
-   * Vérifie si un refresh_token est bien présent.
+   * Vérifie si un refresh_token est présent.
    *
    * @return bool
    *   TRUE si autorisé, FALSE sinon.
@@ -87,9 +70,10 @@ class NetatmoService implements DestructableInterface {
     return (bool) $this->config->get('refresh_token');
   }
 
-  /**
-   * Échange le code OAuth contre access+refresh token.
-   */
+  /* -----------------------------------------------------------------------
+   * OAuth : helpers
+   * --------------------------------------------------------------------- */
+
   public function exchangeAuthorizationCode(string $code): void {
     $response = $this->httpClient->request('POST', 'https://api.netatmo.com/oauth2/token', [
       'form_params' => [
@@ -108,9 +92,6 @@ class NetatmoService implements DestructableInterface {
       ->save();
   }
 
-  /**
-   * Récupère un access_token, rafraîchit si expiré.
-   */
   public function getAccessToken(): string {
     if (($tok = $this->kv->get('access_token')) && $this->kv->get('expires') > time()) {
       return $tok;
@@ -133,10 +114,10 @@ class NetatmoService implements DestructableInterface {
   }
 
   /**
-   * Récupère la liste **des modules** Netatmo (pas des stations).
+   * Récupère la liste des modules Netatmo (pas les stations).
    *
    * @return array
-   *   Tableau de modules ['id' => ..., 'name' => ...].
+   *   Tableau de modules ['id'=>…,'name'=>…].
    */
   public function getModules(): array {
     $token = $this->getAccessToken();
@@ -160,15 +141,40 @@ class NetatmoService implements DestructableInterface {
   }
 
   /**
-   * Intègre un point de donnée dans un asset farmOS.
+   * Provisionne un asset Sensor + DataStream pour chaque module mappé.
+   *
+   * @param array $mapping
+   *   module_id => parent_asset_id.
    */
-  public function addDataToAsset(AssetInterface $asset, string $name, $value): object {
-    // … votre code existant …
+  public function provisionSensors(array $mapping): void {
+    $storage = $this->entityTypeManager->getStorage('asset');
+    foreach ($mapping as $module_id => $parent_id) {
+      // Créer l’asset sensor.
+      $sensor = $storage->create([
+        'type' => 'sensor',
+        'name' => 'Netatmo: ' . $module_id,
+        'field_parent' => $parent_id,
+      ]);
+      $sensor->save();
+
+      // Créer et attacher le DataStream.
+      $stream = $this->basicDataStream->create([
+        'type' => 'basic',
+        'name' => 'Netatmo: ' . $module_id,
+      ]);
+      $stream->save();
+      $sensor->get('data_stream')->appendItem($stream);
+      $sensor->save();
+    }
   }
 
   /**
-   * {@inheritdoc}
+   * Ajouter un point de donnée à un asset.
    */
+  public function addDataToAsset(AssetInterface $asset, string $name, $value): object {
+    // … votre logique existante …
+  }
+
   public function destruct(): void {
     // Rien à nettoyer.
   }

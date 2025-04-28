@@ -15,23 +15,9 @@ use Drupal\Core\Url;
  */
 class NetatmoSettingsForm extends ConfigFormBase {
 
-  /**
-   * Le service Netatmo.
-   *
-   * @var \Drupal\farm_netatmo\NetatmoService
-   */
   protected NetatmoService $netatmoService;
-
-  /**
-   * Le gestionnaire d’entités.
-   *
-   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
-   */
   protected EntityTypeManagerInterface $entityTypeManager;
 
-  /**
-   * Constructeur.
-   */
   public function __construct(
     ConfigFactoryInterface $config_factory,
     NetatmoService $netatmoService,
@@ -42,9 +28,6 @@ class NetatmoSettingsForm extends ConfigFormBase {
     $this->entityTypeManager = $entityTypeManager;
   }
 
-  /**
-   * {@inheritdoc}
-   */
   public static function create(ContainerInterface $container): static {
     return new static(
       $container->get('config.factory'),
@@ -53,27 +36,18 @@ class NetatmoSettingsForm extends ConfigFormBase {
     );
   }
 
-  /**
-   * {@inheritdoc}
-   */
   public function getFormId(): string {
     return 'farm_netatmo_settings';
   }
 
-  /**
-   * {@inheritdoc}
-   */
   protected function getEditableConfigNames(): array {
     return ['farm_netatmo.settings'];
   }
 
-  /**
-   * {@inheritdoc}
-   */
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $config = $this->config('farm_netatmo.settings');
 
-    // --- Identifiants API ---
+    // Identifiants API.
     $form['client_id'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Client ID'),
@@ -87,7 +61,7 @@ class NetatmoSettingsForm extends ConfigFormBase {
       '#required' => TRUE,
     ];
 
-    // --- Statut d’autorisation ---
+    // Statut d’autorisation.
     $refresh_token = $config->get('refresh_token');
     $form['refresh_token'] = [
       '#type' => 'item',
@@ -97,7 +71,7 @@ class NetatmoSettingsForm extends ConfigFormBase {
         : $this->t('Not yet authorized ❌'),
     ];
 
-    // --- Bouton “Autoriser” si les IDs sont renseignés ---
+    // Bouton Autoriser.
     if ($config->get('client_id') && $config->get('client_secret')) {
       $form['authorize'] = [
         '#type' => 'link',
@@ -107,7 +81,7 @@ class NetatmoSettingsForm extends ConfigFormBase {
       ];
     }
 
-    // --- Bouton Ajax “Récupérer les modules” uniquement si autorisé ---
+    // Bouton Ajax Récupérer les modules.
     if ($refresh_token) {
       $form['actions']['fetch_modules'] = [
         '#type' => 'submit',
@@ -121,40 +95,36 @@ class NetatmoSettingsForm extends ConfigFormBase {
       ];
     }
 
-    // --- Conteneur AJAX pour la table de mapping ---
+    // Conteneur AJAX pour la table.
     $form['modules_section'] = [
       '#type' => 'container',
       '#attributes' => ['id' => 'netatmo-modules-wrapper'],
     ];
 
-    // Chargement des modules :
-    // 1) session Ajax
+    // Chargement modules (session puis config).
     $modules = $form_state->get('netatmo_modules');
-    // 2) sinon persisté en config
     if (empty($modules)) {
       $modules = $config->get('fetched_modules') ?: [];
     }
 
     if (!empty($modules)) {
-      // Charger les assets Land et Property.
+      // Préparer options Asset Land/Property.
       $lands = $this->entityTypeManager->getStorage('asset')->loadByProperties(['type' => 'land']);
       $props = $this->entityTypeManager->getStorage('asset')->loadByProperties(['type' => 'property']);
       $options = [];
-      foreach ($lands as $entity) {
-        $options[$entity->id()] = $this->t('Land : @label', ['@label' => $entity->label()]);
+      foreach ($lands as $e) {
+        $options[$e->id()] = $this->t('Land : @label', ['@label' => $e->label()]);
       }
-      foreach ($props as $entity) {
-        $options[$entity->id()] = $this->t('Property : @label', ['@label' => $entity->label()]);
+      foreach ($props as $e) {
+        $options[$e->id()] = $this->t('Property : @label', ['@label' => $e->label()]);
       }
 
-      // En-têtes et mapping sauvegardé.
       $header = [
         'module' => $this->t('Module Netatmo'),
         'asset'  => $this->t('Affecter à'),
       ];
       $saved_map = $config->get('asset_mapping') ?: [];
 
-      // Construction de la table.
       $form['modules_section']['asset_mapping'] = [
         '#type' => 'table',
         '#header' => $header,
@@ -165,10 +135,10 @@ class NetatmoSettingsForm extends ConfigFormBase {
           '#markup' => $m['name'],
         ];
         $form['modules_section']['asset_mapping'][$mid]['asset'] = [
-          '#type'         => 'select',
-          '#options'      => $options,
+          '#type' => 'select',
+          '#options' => $options,
           '#empty_option' => $this->t('- Aucun -'),
-          '#default_value'=> $saved_map[$mid] ?? NULL,
+          '#default_value' => $saved_map[$mid] ?? NULL,
         ];
       }
     }
@@ -176,47 +146,39 @@ class NetatmoSettingsForm extends ConfigFormBase {
     return parent::buildForm($form, $form_state);
   }
 
-  /**
-   * Ajax submit handler : récupère et stocke les modules.
-   */
   public function fetchModules(array &$form, FormStateInterface $form_state): void {
     try {
       $modules = $this->netatmoService->getModules();
-      // 1) session
       $form_state->set('netatmo_modules', $modules);
       $form_state->setRebuild(TRUE);
-      // 2) config persistée
       $this->config('farm_netatmo.settings')
         ->set('fetched_modules', $modules)
         ->save();
     }
     catch (\Exception $e) {
-      $this->messenger()->addError(
-        $this->t('Impossible de joindre Netatmo : @msg', ['@msg' => $e->getMessage()])
-      );
+      $this->messenger()->addError($this->t('Impossible de joindre Netatmo : @msg', ['@msg' => $e->getMessage()]));
     }
   }
 
-  /**
-   * Ajax callback : renvoie le conteneur modules_section.
-   */
   public function ajaxRefresh(array &$form, FormStateInterface $form_state) {
     return $form['modules_section'];
   }
 
-  /**
-   * {@inheritdoc}
-   */
   public function submitForm(array &$form, FormStateInterface $form_state): void {
     parent::submitForm($form, $form_state);
 
-    // Sauvegarde des identifiants et du mapping.
     $mapping = $form_state->getValue('asset_mapping') ?: [];
     $this->config('farm_netatmo.settings')
       ->set('client_id', $form_state->getValue('client_id'))
       ->set('client_secret', $form_state->getValue('client_secret'))
       ->set('asset_mapping', $mapping)
       ->save();
+
+    // Provision des sensors + DataStreams.
+    if (!empty($mapping)) {
+      $this->netatmoService->provisionSensors($mapping);
+      $this->messenger()->addStatus($this->t('Assets Sensor et DataStreams créés pour chaque module Netatmo.'));
+    }
 
     $this->messenger()->addStatus($this->t('Paramètres Netatmo enregistrés.'));
   }
