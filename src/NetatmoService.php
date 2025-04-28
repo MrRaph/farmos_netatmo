@@ -14,7 +14,7 @@ use Drupal\data_stream\DataStreamTypeManager;
 use GuzzleHttp\ClientInterface;
 
 /**
- * Service d’intégration Netatmo : gestion OAuth + import des mesures.
+ * Service d'intégration Netatmo pour farmOS.
  */
 class NetatmoService implements DestructableInterface {
 
@@ -22,12 +22,47 @@ class NetatmoService implements DestructableInterface {
    * Propriétés
    * --------------------------------------------------------------------- */
 
+  /**
+   * Client HTTP Guzzle.
+   *
+   * @var \GuzzleHttp\ClientInterface
+   */
   protected ClientInterface $httpClient;
+
+  /**
+   * Stockage clé/valeur expirable pour les tokens.
+   *
+   * @var \Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface
+   */
   protected KeyValueStoreExpirableInterface $kv;
+
+  /**
+   * Logger.
+   *
+   * @var \Drupal\Core\Logger\LoggerChannelInterface
+   */
   protected LoggerChannelInterface $logger;
+
+  /**
+   * Usine de configuration.
+   *
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
+   */
   protected ConfigFactoryInterface $configFactory;
+
+  /**
+   * Configuration editable du module.
+   *
+   * @var \Drupal\Core\Config\Config
+   */
   protected Config $config;
-  protected \Drupal\data_stream\Plugin\DataStream\DataStreamType\Basic $basicDataStream;
+
+  /**
+   * Gestionnaire de types de flux de données.
+   *
+   * @var \Drupal\data_stream\DataStreamTypeManager
+   */
+  protected DataStreamTypeManager $basicDataStream;
 
   /* -----------------------------------------------------------------------
    * Constructeur
@@ -37,7 +72,7 @@ class NetatmoService implements DestructableInterface {
     KeyValueExpirableFactoryInterface $kv_factory,
     LoggerChannelFactoryInterface $logger_factory,
     ConfigFactoryInterface $config_factory,
-    DataStreamTypeManager $stream_manager,
+    DataStreamTypeManager $stream_manager
   ) {
     $this->httpClient      = $http_client;
     $this->kv              = $kv_factory->get('farm_netatmo_tokens');
@@ -62,35 +97,12 @@ class NetatmoService implements DestructableInterface {
    * --------------------------------------------------------------------- */
 
   /**
-   * URL d’autorisation Netatmo avec state CSRF.
-   */
-  public function buildAuthorizeUrl(string $state): string {
-    $qs = http_build_query([
-      'client_id'     => $this->config->get('client_id'),
-      'redirect_uri'  => $this->getRedirectUri(),
-      'response_type' => 'code',
-      'scope'         => 'read_station',
-      'state'         => $state,
-    ]);
-    return 'https://api.netatmo.com/oauth2/authorize?' . $qs;
-  }
-
-  /**
-   * Stocke un state temporaire (5 min) pour la sécurité OAuth.
-   */
-  public function storeState(string $state, int $uid): void {
-    $this->kv->setWithExpire("state_$state", $uid, 300);
-  }
-
-  /**
-   * Vérifie la validité d’un state reçu du callback.
-   */
-  public function isStateValid(?string $state): bool {
-    return $state && $this->kv->get("state_$state") !== NULL;
-  }
-
-  /**
-   * Échange le code d’autorisation contre access + refresh tokens.
+   * Échange le code OAuth contre un access_token et refresh_token.
+   *
+   * @param string $code
+   *   Code d'autorisation fourni par Netatmo.
+   *
+   * @throws \Exception
    */
   public function exchangeAuthorizationCode(string $code): void {
     $response = $this->httpClient->request('POST', 'https://api.netatmo.com/oauth2/token', [
@@ -107,14 +119,16 @@ class NetatmoService implements DestructableInterface {
 
     $this->kv->setWithExpire('access_token', $data['access_token'], $data['expires_in']);
     $this->kv->set('expires', time() + $data['expires_in']);
-
     $this->config
       ->set('refresh_token', $data['refresh_token'])
       ->save();
   }
 
   /**
-   * Retourne un access_token prêt à l’emploi (refresh si expiré).
+   * Récupère un access token valide (rafraîchit si nécessaire).
+   *
+   * @return string
+   *   Access token.
    */
   public function getAccessToken(): string {
     if (($tok = $this->kv->get('access_token')) && $this->kv->get('expires') > time()) {
@@ -141,95 +155,30 @@ class NetatmoService implements DestructableInterface {
     return $data['access_token'];
   }
 
-  /**
-   * URL absolue du callback OAuth.
-   */
-  protected function getRedirectUri(): string {
-    $base = \Drupal::request()->getSchemeAndHttpHost();
-    return $base . '/farm/netatmo/oauth/callback';
-  }
-
   /* -----------------------------------------------------------------------
-   * API Netatmo : liste des modules
+   * Intégration des données au sein d’assets
    * --------------------------------------------------------------------- */
 
   /**
-   * Renvoie le tableau brut des appareils/modules Netatmo.
+   * Récupère la liste des modules Netatmo disponibles pour l'utilisateur.
+   *
+   * @return array
+   *   Tableau associatif de modules (id, name...).
    */
-  public function listDevices(): array {
+  public function getModules(): array {
     $token = $this->getAccessToken();
-    $resp  = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
+    $response = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
       'headers' => ['Authorization' => 'Bearer ' . $token],
-      // 'query'   => ['get_favorites' => 'false'],
     ]);
-    $json = json_decode($resp->getBody()->getContents(), TRUE);
-    return $json['body']['devices'] ?? [];
-  }
-
-  /* -----------------------------------------------------------------------
-   * Import des mesures pour un asset
-   * --------------------------------------------------------------------- */
-
-  public function fetchAndStore(AssetInterface $asset): void {
-    try {
-      $token = $this->getAccessToken();
-      $device_id = $asset->get('field_netatmo_device_id')->value ?? NULL;
-      if (!$device_id) {
-        $this->logger->warning('Asset @id sans device_id Netatmo.', ['@id' => $asset->id()]);
-        return;
-      }
-
-      $resp = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
-        'headers' => ['Authorization' => 'Bearer ' . $token],
-        // 'query'   => ['device_id' => $device_id, 'get_favorites' => 'false'],
-        'query'   => ['device_id' => $device_id],
-      ]);
-
-      $data = json_decode($resp->getBody()->getContents(), TRUE);
-      if (!isset($data['body']['devices'][0]['dashboard_data'])) {
-        return;
-      }
-
-      $dash     = $data['body']['devices'][0]['dashboard_data'];
-      $ts       = $dash['time_utc'] ?? time();
-      unset($dash['time_utc']);
-
-      $streams = $this->getBasicStreams($asset);
-      foreach ($dash as $name => $value) {
-        if (!isset($streams[$name])) {
-          $streams[$name] = $this->createDataStream($asset, $name);
-        }
-        $this->basicDataStream->saveValue($streams[$name], (float) $value, $ts);
-      }
+    $data = json_decode($response->getBody()->getContents(), TRUE);
+    $modules = [];
+    foreach ($data['body']['devices'] as $device) {
+      $modules[] = [
+        'id' => $device['_id'],
+        'name' => $device['module_name'] ?? $device['station_name'],
+      ];
     }
-    catch (\Throwable $e) {
-      $this->logger->error($e->getMessage());
-    }
-  }
-
-  /* -----------------------------------------------------------------------
-   * Helpers DataStream
-   * --------------------------------------------------------------------- */
-
-  protected function getBasicStreams(AssetInterface $asset): array {
-    $out = [];
-    foreach ($asset->get('data_stream')->referencedEntities() as $stream) {
-      if ($stream->bundle() === 'basic') {
-        $out[$stream->label()] = $stream;
-      }
-    }
-    return $out;
-  }
-
-  protected function createDataStream(AssetInterface $asset, string $name) {
-    $stream = $this->basicDataStream->create([
-      'type' => 'basic',
-      'name' => $name,
-    ]);
-    $stream->save();
-    $asset->get('data_stream')->appendItem($stream);
-    $asset->save();
-    return $stream;
+    return $modules;
   }
 
   /* -----------------------------------------------------------------------
