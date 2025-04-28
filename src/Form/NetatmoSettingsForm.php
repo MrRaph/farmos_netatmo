@@ -98,14 +98,14 @@ class NetatmoSettingsForm extends ConfigFormBase {
 
         // Bouton Ajax “Récupérer les données des modules” uniquement si autorisé.
         if ( $refresh_token ) {
-            $form[ 'actions' ][ 'fetch_data' ] = [
-                '#type' => 'submit',
+            $form[ 'modules_section' ][ 'fetch_data' ] = [
+                '#type' => 'button',
                 '#value' => $this->t( 'Récupérer les données Netatmo' ),
-                '#submit' => [ '::fetchData' ],
                 '#ajax' => [
-                    'callback' => '::ajaxRefresh',
+                    'callback' => '::ajaxFetchData',
                     'wrapper' => 'netatmo-modules-wrapper',
-                    'effect' => 'fade',
+                    'effect'  => 'fade',
+                    'event'   => 'click',
                 ],
             ];
         }
@@ -214,6 +214,22 @@ class NetatmoSettingsForm extends ConfigFormBase {
         }
 
         $this->messenger()->addStatus( $this->t( 'Paramètres Netatmo enregistrés.' ) );
+    }
+
+    /**
+    * AJAX callback: récupère les données puis renvoie la section modules_section.
+    */
+
+    public function ajaxFetchData( array &$form, FormStateInterface $form_state ) {
+        try {
+            // Appelle directement votre service pour fetch et stocker les données.
+            $this->netatmoService->fetchModuleData();
+            $this->messenger()->addStatus( $this->t( 'Données Netatmo récupérées et stockées.' ) );
+        } catch ( \Exception $e ) {
+            $this->messenger()->addError( $this->t( 'Erreur lors de la récupération des données : @msg', [ '@msg' => $e->getMessage() ] ) );
+        }
+        // On renvoie la portion du formulaire enveloppée par netatmo-modules-wrapper.
+        return $form[ 'modules_section' ];
     }
 
 }
