@@ -5,7 +5,7 @@ farm_netatmo.settings:
     _form: '\Drupal\farm_netatmo\Form\NetatmoSettingsForm'
     _title: 'Netatmo'
   requirements:
-    _permission: 'administer farm sensor'
+    _permission: 'administer farm settings'
   options:
     _admin_route: TRUE
 
@@ -15,7 +15,7 @@ farm_netatmo.authorize:
   defaults:
     _controller: '\Drupal\farm_netatmo\Controller\AuthorizationController::authorize'
   requirements:
-    _permission: 'administer farm sensor'
+    _permission: 'administer farm settings'
 
 # Callback OAuth ouvert (pas d’auth Drupal)
 farm_netatmo.callback:
