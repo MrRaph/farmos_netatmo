@@ -251,6 +251,27 @@ class NetatmoService implements DestructableInterface {
     }
   }
 
+    /**
+   * Stocke le paramètre d'état OAuth pour vérification ultérieure.
+   *
+   * @param string $state
+   *   La valeur du paramètre state reçu de Netatmo.
+   */
+  public function storeState(string $state): void {
+    // On conserve l'état dans le KeyValue.
+    $this->kv->set('oauth_state', $state);
+  }
+
+  /**
+   * Récupère la valeur d'état OAuth précédemment stockée.
+   *
+   * @return string|null
+   *   Le state précédemment enregistré, ou NULL si absent.
+   */
+  public function retrieveState(): ?string {
+    return $this->kv->get('oauth_state');
+  }
+
 
   /**
    * {@inheritdoc}
