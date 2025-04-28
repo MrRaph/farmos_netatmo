@@ -209,35 +209,46 @@ class NetatmoService implements DestructableInterface {
   }
 
   /**
-   * Ajoute un point de donnée à un asset.
+   * Ajoute un point de donnée à un asset via le plugin basic.
    */
-  public function addDataToAsset(AssetInterface $asset, string $name, $value): object {
-    // Détermination du nom du stream pour cette métrique.
+  public function addDataToAsset(AssetInterface $asset, string $name, $value): void {
+    // 1) Nom du DataStream pour cette mesure.
     $streamName = $asset->label() . ' ' . ucfirst($name);
     $streamStorage = $this->entityTypeManager->getStorage('data_stream');
     $streams = $streamStorage->loadByProperties(['name' => $streamName]);
-    if ($streams) {
-      $stream = reset($streams);
-    }
-    else {
-      $stream = $streamStorage->create(['type' => 'basic', 'name' => $streamName]);
+    $stream = $streams ? reset($streams) : NULL;
+
+    // 2) Créer et lier le DataStream s'il n'existe pas.
+    if (!$stream) {
+      $stream = $streamStorage->create([
+        'type' => 'basic',
+        'name' => $streamName,
+      ]);
       $stream->save();
-      // Attacher le stream au sensor.
       $asset->get('data_stream')->appendItem(['target_id' => $stream->id()]);
       $asset->save();
     }
 
-    // Création du DataPoint via le storage.
-    $dpStorage = $this->entityTypeManager->getStorage('data_point');
-    $timestamp = \Drupal::time()->getRequestTime();
-    $datapoint = $dpStorage->create([
-      'stream'    => $stream->id(),
-      'timestamp' => $timestamp,
-      'value'     => $value,
-    ]);
-    $datapoint->save();
+    // 3) Charger le plugin “basic” pour ce DataStream.
+    /** @var \Drupal\data_stream\Plugin\DataStreamTypeManager $manager */
+    $manager = \Drupal::service('plugin.manager.data_stream_type');
+    $plugin = $manager->createInstance($stream->bundle(), ['stream_entity' => $stream]);
 
-    return $datapoint;
+    // 4) Préparer les données à stocker.
+    $timestamp = \Drupal::time()->getRequestTime();
+    $data = [
+      'timestamp' => $timestamp,
+      // La clé doit correspondre au libellé du stream.
+      $stream->label() => $value,
+    ];
+
+    // 5) Enregistrer via storageSave() du plugin.
+    if (method_exists($plugin, 'storageSave')) {
+      $plugin->storageSave($stream, $data);
+    }
+    else {
+      throw new \Exception('Le plugin DataStream basic ne supporte pas storageSave().');
+    }
   }
 
 
