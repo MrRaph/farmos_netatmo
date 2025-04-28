@@ -201,8 +201,63 @@ class NetatmoService implements DestructableInterface {
    * Ajoute un point de donnée à un asset.
    */
   public function addDataToAsset(AssetInterface $asset, string $name, $value): object {
-    // Votre logique existante.
+    // Par exemple, on crée un point de données dans le DataStream “basic”.
+    // 1) On récupère le DataStream attaché.
+    $streams = $asset->get('data_stream')->referencedEntities();
+    if (empty($streams)) {
+      throw new Exception('Pas de DataStream attaché pour ' . $asset->id());
+    }
+    $stream = reset($streams);
+  
+    // 2) On ajoute la donnée (implémentez votre logique).
+    //    Par ex. $stream->addDataPoint($name, $value);
+    //    Puis $stream->save().
+  
+    return $stream;
   }
+  
+
+  /**
+   * Récupère les données de chaque module et les stocke dans le DataStream associé.
+   */
+  public function fetchModuleData(): void {
+    // 1) On récupère l’état courant (avec dashboard_data).
+    $token = $this->getAccessToken();
+    $response = $this->httpClient->request('GET', 'https://api.netatmo.com/api/getstationsdata', [
+      'headers' => ['Authorization' => 'Bearer ' . $token],
+    ]);
+    $data = json_decode($response->getBody()->getContents(), TRUE);
+
+    // 2) Pour chaque station et chaque module…
+    foreach ($data['body']['devices'] as $station) {
+      foreach ($station['modules'] as $module) {
+        if (empty($module['dashboard_data'])) {
+          continue;
+        }
+        $module_id   = $module['_id'];
+        $module_name = $module['module_name'] ?? $module['type'];
+        $sensorName  = 'Netatmo ' . $module_name;
+
+        // 3) On trouve l’asset capteur existant.
+        $sensors = $this->entityTypeManager
+          ->getStorage('asset')
+          ->loadByProperties(['type' => 'sensor', 'name' => $sensorName]);
+        /** @var \\Drupal\\asset\\Entity\\AssetInterface $sensor */
+        $sensor = $sensors ? reset($sensors) : NULL;
+        if (!$sensor) {
+          // Si pas de capteur, on skip.
+          continue;
+        }
+
+        // 4) On va écrire chaque donnée dans le DataStream “basic”.
+        foreach ($module['dashboard_data'] as $key => $value) {
+          // Utilise votre helper addDataToAsset() :
+          $this->addDataToAsset($sensor, $key, $value);
+        }
+      }
+    }
+  }
+
 
   /**
    * {@inheritdoc}
