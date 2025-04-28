@@ -1,6 +1,8 @@
 <?php
 
 use Drupal\asset\Entity\AssetInterface;
+use Drupal\Core\Entity\EntityTypeInterface;
+use Drupal\Core\Field\BaseFieldDefinition;
 
 /**
  * Implémente hook_cron().
@@ -59,4 +61,14 @@ function farm_netatmo_cron() {
     'Netatmo cron : @new assets créés, @all modules en file.',
     ['@new' => $created, '@all' => count($devices)],
   );
+}
+
+/**
+ * Implements hook_entity_base_field_info_alter().
+ */
+function farm_netatmo_entity_base_field_info_alter(&$fields, EntityTypeInterface $entity_type) {
+  if ($entity_type->id() === 'asset' && isset($fields['parents'])) {
+    // Autoriser le champ parents sur les capteurs.
+    $fields['parents']->setTargetBundles(['sensor' => 'sensor']);
+  }
 }

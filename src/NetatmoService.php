@@ -160,6 +160,37 @@ class NetatmoService implements DestructableInterface {
         'type' => 'sensor',
         'name' => $sensorName,
       ]);
+      
+      // Associer le parent via le champ base 'parents'.
+      if ($sensor->hasField('parents')) {
+        $sensor->get('parents')->appendItem(['target_id' => $parent_id]);
+      }
+
+      // Créer le DataStream.
+      $stream = $stream_storage->create([
+        'type' => 'basic',
+        'name' => $sensorName,
+      ]);
+
+      // Attacher le flux au capteur.
+      $sensor->get('data_stream')->appendItem($stream);
+      
+      $sensor->save();
+    }
+  }
+
+    $asset_storage  = $this->entityTypeManager->getStorage('asset');
+    $stream_storage = $this->entityTypeManager->getStorage('data_stream');
+
+    foreach ($mapping as $module_id => $parent_id) {
+      $label      = $nameMap[$module_id] ?? $module_id;
+      $sensorName = 'Netatmo ' . $label;
+
+      // Créer l’asset sensor.
+      $sensor = $asset_storage->create([
+        'type' => 'sensor',
+        'name' => $sensorName,
+      ]);
       $sensor->save();
 
       // Associer le parent (nom du champ: field_parent).
