@@ -144,32 +144,39 @@ class NetatmoService implements DestructableInterface {
     foreach ($fetched as $m) {
       $nameMap[$m['id']] = $m['name'];
     }
+
     $asset_storage = $this->entityTypeManager->getStorage('asset');
     $stream_storage = $this->entityTypeManager->getStorage('data_stream');
+
     foreach ($mapping as $module_id => $parent_id) {
       $label = $nameMap[$module_id] ?? $module_id;
       $sensorName = 'Netatmo ' . $label;
+
       // Réutilise ou crée le sensor.
-      $existing_sensors = $asset_storage->loadByProperties(['type' => 'sensor', 'name' => $sensorName]);
-      $sensor = $existing_sensors ? reset($existing_sensors) : $asset_storage->create(['type' => 'sensor', 'name' => $sensorName]);
-      // Associe le parent si besoin.
-      if ($sensor->hasField('parents')) {
-        $current = array_column($sensor->get('parents')->getValue(), 'target_id');
+      $existing = $asset_storage->loadByProperties(['type' => 'sensor', 'name' => $sensorName]);
+      $sensor = $existing ? reset($existing) : $asset_storage->create(['type' => 'sensor', 'name' => $sensorName]);
+
+      // Associer le parent via le base-field 'parent'.
+      if ($sensor->hasField('parent')) {
+        $current = array_column($sensor->get('parent')->getValue(), 'target_id');
         if (!in_array($parent_id, $current)) {
-          $sensor->get('parents')->appendItem(['target_id' => $parent_id]);
+          $sensor->get('parent')->appendItem(['target_id' => $parent_id]);
         }
       }
+
       // Réutilise ou crée le DataStream.
-      $existing_streams = $stream_storage->loadByProperties(['name' => $sensorName]);
-      $stream = $existing_streams ? reset($existing_streams) : $stream_storage->create(['type' => 'basic', 'name' => $sensorName]);
-      if (!$existing_streams) {
+      $existing_stream = $stream_storage->loadByProperties(['name' => $sensorName]);
+      $stream = $existing_stream ? reset($existing_stream) : $stream_storage->create(['type' => 'basic', 'name' => $sensorName]);
+      if (!$existing_stream) {
         $stream->save();
       }
-      // Attache le flux.
+
+      // Attache le flux au capteur.
       $attached = array_column($sensor->get('data_stream')->getValue(), 'target_id');
       if (!in_array($stream->id(), $attached)) {
         $sensor->get('data_stream')->appendItem(['target_id' => $stream->id()]);
       }
+
       $sensor->save();
     }
   }
