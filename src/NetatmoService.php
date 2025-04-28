@@ -19,25 +19,53 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
  */
 class NetatmoService implements DestructableInterface {
 
-  /** @var \GuzzleHttp\ClientInterface */
+  /**
+   * Client HTTP Guzzle.
+   *
+   * @var \GuzzleHttp\ClientInterface
+   */
   protected ClientInterface $httpClient;
 
-  /** @var \Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface */
+  /**
+   * Stockage clé/valeur expirable pour les tokens.
+   *
+   * @var \Drupal\Core\KeyValueStore\KeyValueStoreExpirableInterface
+   */
   protected KeyValueStoreExpirableInterface $kv;
 
-  /** @var \Drupal\Core\Logger\LoggerChannelInterface */
+  /**
+   * Logger.
+   *
+   * @var \Drupal\Core\Logger\LoggerChannelInterface
+   */
   protected LoggerChannelInterface $logger;
 
-  /** @var \Drupal\Core\Config\ConfigFactoryInterface */
+  /**
+   * Usine de configuration.
+   *
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
+   */
   protected ConfigFactoryInterface $configFactory;
 
-  /** @var \Drupal\Core\Config\Config */
+  /**
+   * Configuration editable du module.
+   *
+   * @var \Drupal\Core\Config\Config
+   */
   protected Config $config;
 
-  /** @var object */
+  /**
+   * Plugin basique de flux de données (non typé pour accepter l'instance renvoyée).
+   *
+   * @var object
+   */
   protected $basicDataStream;
 
-  /** @var \Drupal\Core\Entity\EntityTypeManagerInterface */
+  /**
+   * Le gestionnaire d’entités.
+   *
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   */
   protected EntityTypeManagerInterface $entityTypeManager;
 
   /**
@@ -147,22 +175,28 @@ class NetatmoService implements DestructableInterface {
    *   module_id => parent_asset_id.
    */
   public function provisionSensors(array $mapping): void {
-    $storage = $this->entityTypeManager->getStorage('asset');
+    $asset_storage = $this->entityTypeManager->getStorage('asset');
+    $stream_storage = $this->entityTypeManager->getStorage('data_stream');
+
     foreach ($mapping as $module_id => $parent_id) {
       // Créer l’asset sensor.
-      $sensor = $storage->create([
+      /** @var \Drupal\asset\Entity\AssetInterface $sensor */
+      $sensor = $asset_storage->create([
         'type'         => 'sensor',
         'name'         => 'Netatmo: ' . $module_id,
         'field_parent' => $parent_id,
       ]);
       $sensor->save();
 
-      // Créer et attacher le DataStream.
-      $stream = $this->basicDataStream->create([
+      // Créer le DataStream en tant qu’entité.
+      /** @var \Drupal\data_stream\Entity\DataStream $stream */
+      $stream = $stream_storage->create([
         'type' => 'basic',
         'name' => 'Netatmo: ' . $module_id,
       ]);
       $stream->save();
+
+      // Lier le stream à l’asset sensor.
       $sensor->get('data_stream')->appendItem($stream);
       $sensor->save();
     }
@@ -175,6 +209,9 @@ class NetatmoService implements DestructableInterface {
     // … votre logique existante …
   }
 
+  /**
+   * {@inheritdoc}
+   */
   public function destruct(): void {
     // Rien à nettoyer.
   }
