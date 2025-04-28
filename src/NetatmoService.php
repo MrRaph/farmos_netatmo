@@ -34,11 +34,7 @@ class NetatmoService implements DestructableInterface {
   /** @var \Drupal\Core\Config\Config */
   protected Config $config;
 
-  /**
-   * Plugin basique de flux de données.
-   *
-   * @var object
-   */
+  /** @var object */
   protected $basicDataStream;
 
   /** @var \Drupal\Core\Entity\EntityTypeManagerInterface */
@@ -66,9 +62,6 @@ class NetatmoService implements DestructableInterface {
 
   /**
    * Vérifie si un refresh_token est présent.
-   *
-   * @return bool
-   *   TRUE si autorisé, FALSE sinon.
    */
   public function isAuthorized(): bool {
     return (bool) $this->config->get('refresh_token');
@@ -119,9 +112,6 @@ class NetatmoService implements DestructableInterface {
 
   /**
    * Récupère la liste des modules Netatmo (pas les stations).
-   *
-   * @return array
-   *   Tableau de modules ['id'=>…,'name'=>…].
    */
   public function getModules(): array {
     $token = $this->getAccessToken();
@@ -146,12 +136,9 @@ class NetatmoService implements DestructableInterface {
 
   /**
    * Provisionne un asset Sensor + DataStream pour chaque module mappé.
-   *
-   * @param array $mapping
-   *   module_id => parent_asset_id.
    */
   public function provisionSensors(array $mapping): void {
-    // Map module_id to module name via config.
+    // Map module_id to name.
     $fetched = $this->config->get('fetched_modules') ?: [];
     $nameMap = [];
     foreach ($fetched as $m) {
@@ -166,16 +153,17 @@ class NetatmoService implements DestructableInterface {
       $sensorName = 'Netatmo ' . $label;
 
       // Créer l’asset sensor.
-      /** @var \Drupal\asset\Entity\AssetInterface $sensor */
       $sensor = $asset_storage->create([
-        'type'         => 'sensor',
-        'name'         => $sensorName,
-        'field_parent' => $parent_id,
+        'type' => 'sensor',
+        'name' => $sensorName,
       ]);
       $sensor->save();
 
+      // Associer le parent (référence multiple sur "parents").
+      $sensor->get('parents')->appendItem(['target_id' => $parent_id]);
+      $sensor->save();
+
       // Créer le DataStream.
-      /** @var \Drupal\data_stream\Entity\DataStream $stream */
       $stream = $stream_storage->create([
         'type' => 'basic',
         'name' => $sensorName,
@@ -195,10 +183,5 @@ class NetatmoService implements DestructableInterface {
     // … votre logique existante …
   }
 
-  /**
-   * {@inheritdoc}
-   */
-  public function destruct(): void {
-    // Rien à nettoyer.
-  }
+  public function destruct(): void {}
 }
