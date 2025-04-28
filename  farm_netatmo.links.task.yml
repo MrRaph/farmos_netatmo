@@ -1,5 +1,0 @@
-farm_netatmo.settings_tab:
-  route_name: farm_netatmo.settings   # l’écran que vous venez de définir
-  title: 'Netatmo'
-  base_route: farm.settings           # la page /farm/settings
-  weight: 20                          # ordre d’affichage parmi les onglets
